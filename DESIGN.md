@@ -330,9 +330,11 @@ The following are determined at the group draw event:
 ## 11. Architecture
 
 ### Tech stack
-- **Frontend:** Next.js (React) + Tailwind CSS + shadcn/ui
-- **Backend:** Next.js API routes (no separate backend service)
+- **Language:** TypeScript
+- **Frontend:** Next.js 15 (App Router, React) + Tailwind CSS + shadcn/ui
+- **Backend:** Next.js API routes / server actions (no separate backend service)
 - **Database:** PostgreSQL via Supabase
+- **ORM:** Drizzle ORM (`drizzle-orm` + `drizzle-kit` for migrations)
 - **Auth:** Supabase Auth
 - **Cron:** Vercel Cron (free tier)
 - **Deployment:** Vercel (auto-deploy from GitHub)
@@ -472,7 +474,7 @@ Before implementing any new feature:
 
 ## 16. Open Items (Pending First Implementation Session)
 
-- Database schema design — first engineering task once Claude Code is set up
+- Database schema design (Drizzle schema in `src/db/schema.ts`, migrations via `drizzle-kit`) — first engineering task once Claude Code is set up
 - CLAUDE.md for the repo — short action-oriented file pointing Claude Code at this design doc
 - GitHub repo creation and initial Next.js scaffolding
 - Supabase project creation and connection setup
