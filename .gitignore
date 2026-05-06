@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Next.js
+.next/
+out/
+
+# Build output
+dist/
+
+# Env files
+.env
+.env.local
+.env.*.local
+
+# Drizzle
+drizzle/meta/
+
+# Vercel
+.vercel/
+
+# OS
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
+*.swp
