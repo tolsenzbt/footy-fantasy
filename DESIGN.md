@@ -4,7 +4,7 @@
 
 **Status:** Pre-implementation. All format and architectural decisions in this document are locked unless explicitly revisited.
 
-**Last updated:** May 5, 2026 (v2 — added multi-format support)
+**Last updated:** May 6, 2026 (v3 — admin/commissioner/manager role split, round identifier clarification, nation status model, eliminated-roster handling clarified, MVP commissioner UI deferred)
 
 ---
 
@@ -19,7 +19,7 @@ Footy Fantasy is a private fantasy soccer league for the 2026 World Cup, designe
 - Support flexible league sizes so the league can launch even if recruiting falls short of 16
 
 **Non-goals:**
-- Multi-league support / public leagues
+- Public leagues
 - Native mobile apps (responsive web only)
 - Monetization
 - Trading mechanics (managers can swap via free agency on an honor system if desired)
@@ -34,17 +34,22 @@ Footy Fantasy is a private fantasy soccer league for the 2026 World Cup, designe
 - Round of 32 begins immediately after group stage
 - Tournament concludes July 19, 2026
 
-### Supported league sizes
-The app supports three league formats: **8, 12, or 16 managers.** Format is selected by admin and locked at draft start.
+### Fantasy round identifiers
+The schema and this document use the following round identifiers throughout:
 
-### Fantasy knockout mapping (all formats)
-| Fantasy round | Real-world equivalent |
+| Fantasy round identifier | Real-world round it scores from |
 |---|---|
-| Quarterfinals | Round of 32 |
-| Semifinals | Round of 16 |
-| Final | Quarterfinals |
+| `group_md1` | Group stage matchday 1 |
+| `group_md2` | Group stage matchday 2 |
+| `group_md3` | Group stage matchday 3 |
+| `qf` (fantasy quarterfinals) | Round of 32 |
+| `sf` (fantasy semifinals) | Round of 16 |
+| `final` (fantasy final) | Quarterfinals |
 
 The fantasy season ends when 8 real teams are still alive. Real-world Semifinals, 3rd-place match, and Final occur after the fantasy champion is crowned.
+
+### Supported league sizes
+The app supports three league formats: **8, 12, or 16 managers.** Format is selected by the admin and locked at draft start.
 
 ### Group-stage tiebreakers (all formats, in order)
 1. Total fantasy points scored across all matchups (Points For)
@@ -62,7 +67,7 @@ The format spec uses identifiers like `A1`, `B2`, etc. in two distinct contexts.
 
 **Schedule slot** (e.g., `A1`, `A2`, `B1`): assigned during the live group draw event. Static for the entire group stage. Determines who you play and when. Has no relationship to skill or final standing — `A1` just means "the first manager randomly drawn into Group A."
 
-**Group standing** (e.g., `1A`, `2B`): computed after MD3 based on record, PF, tiebreakers. Dynamic — represents your final position within your group. `1A` means "the 1st-place finisher of Group A," who may or may not be the manager who held schedule slot `A1`.
+**Group standing** (e.g., `1A`, `2B`): computed after `group_md3` based on record, PF, tiebreakers. Dynamic — represents your final position within your group. `1A` means "the 1st-place finisher of Group A," who may or may not be the manager who held schedule slot `A1`.
 
 **Schedule slots are used in:** the pre-locked group-stage schedule (Section 3), the group draw event (Section 4).
 
@@ -74,30 +79,30 @@ The schema must track these as separate concepts.
 
 ### 16-team format
 
-**Group stage:** 4 fantasy groups of 4 managers (A, B, C, D). Each manager plays a round-robin within their group across MD1, MD2, MD3.
+**Group stage:** 4 fantasy groups of 4 managers (A, B, C, D). Each manager plays a round-robin within their group across `group_md1`, `group_md2`, `group_md3`.
 
 **Schedule (using slot identifiers, locked pre-tournament):**
-- MD1: A1-A2, A3-A4, B1-B2, B3-B4, C1-C2, C3-C4, D1-D2, D3-D4
-- MD2: A1-A3, A2-A4, B1-B3, B2-B4, C1-C3, C2-C4, D1-D3, D2-D4
-- MD3: A1-A4, A2-A3, B1-B4, B2-B3, C1-C4, C2-C3, D1-D4, D2-D3
+- `group_md1`: A1-A2, A3-A4, B1-B2, B3-B4, C1-C2, C3-C4, D1-D2, D3-D4
+- `group_md2`: A1-A3, A2-A4, B1-B3, B2-B4, C1-C3, C2-C4, D1-D3, D2-D4
+- `group_md3`: A1-A4, A2-A3, B1-B4, B2-B3, C1-C4, C2-C3, D1-D4, D2-D3
 
 **Knockout qualification:** Top 2 from each group → 8 advance.
 
 **Bracket (cross-group, mirrors real WC) — uses group standings, not schedule slots:**
 - Top half: 1A vs 2B, 1B vs 2A
 - Bottom half: 1C vs 2D, 1D vs 2C
-- Winners advance through Semis to Final.
+- Winners advance through `sf` to `final`.
 
 (`1A` = 1st-place finisher of Group A, `2B` = 2nd-place finisher of Group B, etc.)
 
 ### 12-team format
 
-**Group stage:** 4 fantasy groups of 3 managers (A, B, C, D). Each manager plays both group-mates AND one cross-group opponent over MD1, MD2, MD3.
+**Group stage:** 4 fantasy groups of 3 managers (A, B, C, D). Each manager plays both group-mates AND one cross-group opponent over `group_md1`, `group_md2`, `group_md3`.
 
 **Schedule (locked pre-tournament):**
-- MD1: A1-A2, B1-B2, C1-C2, D1-D2, A3-B3, C3-D3
-- MD2: A1-A3, B1-B3, C1-C3, D1-D3, A2-B2, C2-D2
-- MD3: A2-A3, B2-B3, C2-C3, D2-D3, A1-B1, C1-D1
+- `group_md1`: A1-A2, B1-B2, C1-C2, D1-D2, A3-B3, C3-D3
+- `group_md2`: A1-A3, B1-B3, C1-C3, D1-D3, A2-B2, C2-D2
+- `group_md3`: A2-A3, B2-B3, C2-C3, D2-D3, A1-B1, C1-D1
 
 **Cross-group pairing structure:** A↔B and C↔D groups are paired, with same-position-slot managers facing each other on their cross-group matchday.
 
@@ -107,20 +112,20 @@ The schema must track these as separate concepts.
 
 ### 8-team format
 
-**Group stage:** 2 fantasy groups of 4 managers (A, B). Each manager plays a round-robin within their group across MD1, MD2, MD3.
+**Group stage:** 2 fantasy groups of 4 managers (A, B). Each manager plays a round-robin within their group across `group_md1`, `group_md2`, `group_md3`.
 
 **Schedule (locked pre-tournament):**
-- MD1: A1-A2, A3-A4, B1-B2, B3-B4
-- MD2: A1-A3, A2-A4, B1-B3, B2-B4
-- MD3: A1-A4, A2-A3, B1-B4, B2-B3
+- `group_md1`: A1-A2, A3-A4, B1-B2, B3-B4
+- `group_md2`: A1-A3, A2-A4, B1-B3, B2-B4
+- `group_md3`: A1-A4, A2-A3, B1-B4, B2-B3
 
 **Knockout qualification:** Top 3 from each group → 6 advance.
 
 **Bracket structure (uses group standings, not schedule slots):**
 - 1A and 1B receive first-round byes
-- QF: 2A vs 3B, 2B vs 3A
-- SF: 1A vs (2B/3A winner), 1B vs (2A/3B winner)
-- Final: SF winners
+- `qf`: 2A vs 3B, 2B vs 3A
+- `sf`: 1A vs (2B/3A winner), 1B vs (2A/3B winner)
+- `final`: `sf` winners
 
 (`1A` = 1st-place finisher of Group A, etc.)
 
@@ -140,7 +145,7 @@ After the initial draft completes, a **live group drawing event** assigns manage
   - **16-team:** A1 → B1 → C1 → D1 → A2 → B2 → C2 → D2 → A3 → B3 → C3 → D3 → A4 → B4 → C4 → D4
 
 ### Admin override
-Admin can manually enter group assignments instead of using the in-app drawing (for cases where the draw is done IRL with ping pong balls, etc.).
+The admin can manually enter group assignments instead of using the in-app drawing (for cases where the draw is done IRL with ping pong balls, etc.). Handled via DB for MVP.
 
 ### Schedule generation
 Because all matchup schedules are pre-locked using slot identifiers, the schedule is automatically determined the moment slot assignments complete.
@@ -171,6 +176,7 @@ Total must equal exactly 14, AND each position must fall within its range.
 - One starter is designated **Captain** each matchday → scores 2x
 - One starter is designated **Vice-Captain** → auto-promotes to 2x if Captain plays 0 minutes
 - Both must be selected from the starting XI
+- VC is optional — if no VC is set and the captain plays 0 minutes, the captain simply scores 1x with no fallback
 
 ### Lineup lock
 - A player is **locked** the moment their nation's match kicks off
@@ -254,7 +260,7 @@ A player enters waivers when:
 
 ### Waiver processing schedule
 - One processing event per real-world matchday at **5am ET** the morning after the matchday's last game
-- Group stage: 3 processing events (after MD1, MD2, MD3)
+- Group stage: 3 processing events (after `group_md1`, `group_md2`, `group_md3`)
 - Knockouts: 1 processing event after each round
 - Special: post-redraft waivers clear 1 hour after redraft completes
 
@@ -276,13 +282,15 @@ Waiver claims can include a "drop-if-successful" designation. If multiple claims
 All undrafted players sit on waivers for 24 hours after the draft concludes, then become free agents.
 
 ### Mass release at end of group stage
-- All players from non-advancing nations are auto-dropped at conclusion of MD3
+- All players from non-advancing nations on **advancing managers' rosters** are auto-dropped at conclusion of `group_md3`
 - These players sit on waivers through the redraft
 - Players selected in the redraft come off waivers
 - Unselected players clear waivers 1 hour after redraft completes
 
+Auto-drop applies only to advancing managers' rosters. Non-advancing (eliminated) managers' rosters are locked intact at end of group stage; their players (whether from advancing or eliminated nations) are not returned to the pool.
+
 ### Eliminated managers
-Rosters lock at end of group stage. Players on eliminated managers' rosters are removed from the active pool entirely.
+Rosters lock at end of group stage. Players on eliminated managers' rosters are removed from the active pool entirely (regardless of whether their nation is still alive in the real tournament).
 
 ---
 
@@ -292,10 +300,16 @@ Rosters lock at end of group stage. Players on eliminated managers' rosters are 
 - **User creation:** Admin creates accounts and assigns to league
 - **No social login** (Google/Apple OAuth out of scope)
 - **No public registration**
-- **Single league per deployment**
+
+### Roles
+The system distinguishes three roles:
+
+- **Admin:** App-level operator. Not associated with any specific league. Can create leagues, manage user accounts across leagues, perform out-of-app database operations, and exercise all in-league powers in any league. The project owner holds this role.
+- **Commissioner:** League-scoped operator role reserved for future use. Will allow per-league self-management (in-app UI for waiver overrides, lineup resets, etc.) without admin involvement. Defined in the schema and permission model so it can be expanded later. Not assigned for the inaugural league — the admin handles all league operations directly via DB.
+- **Manager:** A league participant. Drafts a team, sets lineups, makes waiver claims. The admin joins leagues as a manager under a separate user account to participate as a regular player.
 
 ### League lock
-The following are determined and frozen when admin clicks "Start Draft":
+The following are determined and frozen when the admin clicks "Start Draft":
 - League size (8, 12, or 16) — cannot change after this
 - Manager list — no adds/drops to the league after this
 - Initial draft order — generated (random) or admin-set
@@ -324,6 +338,15 @@ The following are determined at the group draw event:
 ### Backup plan
 - Upgrade to API-Football Pro plan ($19/month) for the tournament duration if needed
 - ESPN scraping as a deeper fallback
+
+### Nation status
+Each nation tracks two derived fields:
+- `eliminated_at_round` — null while the nation is alive in the real tournament; set to the round identifier of the round in which the nation was knocked out (e.g., `group_md3`, the real R32, the real R16) once eliminated.
+- `next_fixture_id` — the nation's upcoming real-world fixture, null when eliminated or when the next round's schedule has not yet been published.
+
+Player-level status (eliminated vs. active, next match info) is **always derived from the player's nation via join**, never stored on the player. When a real-world fixture finalizes, a background job recomputes affected nations' `next_fixture_id` and sets `eliminated_at_round` on any nation that was knocked out by that fixture.
+
+The UI displays each player's nation status as either the next fixture (opponent + kickoff time) when active, or "Eliminated" when not.
 
 ---
 
@@ -369,22 +392,25 @@ Three layers:
 
 ---
 
-## 13. Admin Powers
+## 13. Admin & Commissioner Powers
 
-The league admin (project owner) has unrestricted ability to manipulate the system. **No dedicated admin UI is built for most operations** — admin work happens via direct database manipulation through Supabase dashboard or scripts run via Claude Code.
+### Admin powers (app-level)
+The admin (project owner) has full access to the underlying database and can perform any state correction. **No dedicated UI is built for admin operations in MVP** — admin work happens via direct database manipulation through the Supabase dashboard or scripts run via Claude Code.
 
-### Built-in admin UI features (within MVP)
+**Operations handled via DB:**
 - Manual stat / fantasy point override
 - Manual waiver controls (process, undo)
 - Lineup reset for any manager
 - Initial draft order override
 - Group assignment override (manual entry)
-
-### Out-of-app admin operations (handled via DB)
 - Changing league format mid-season
-- Adding/removing managers
+- Adding/removing managers from a locked league
 - Restoring deleted players
 - Swapping rosters or correcting any other state
+- Creating new leagues, managing user accounts across leagues
+
+### Commissioner powers (future)
+The commissioner role is reserved for future per-league self-management. When implemented, commissioners will have an in-app UI for the league-scoped subset of the operations above (stat overrides, waiver controls, lineup resets, draft order override, group assignment override). Out of scope for MVP — admin handles these via DB for now.
 
 ---
 
@@ -402,7 +428,6 @@ The league admin (project owner) has unrestricted ability to manipulate the syst
 
 ### Group draw event
 - Live group draw UI (slot-by-slot reveal)
-- Admin manual override for group assignments
 
 ### Roster & lineups
 - View own roster
@@ -423,14 +448,8 @@ The league admin (project owner) has unrestricted ability to manipulate the syst
 - Group standings table (W/L/D/PF)
 - Knockout bracket display (format-specific shape)
 
-### Admin
-- Manual stat / fantasy point override
-- Manual waiver controls (process, undo)
-- Lineup reset for any manager
-- Initial draft order override
-- Group assignment override
-
 ### Explicitly out of MVP / V1
+- In-app admin/commissioner UI (all admin operations via DB for MVP — see §13)
 - Pre-rank queue
 - Notifications (in-app, email, push)
 - Draft chat
