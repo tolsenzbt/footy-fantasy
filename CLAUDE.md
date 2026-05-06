@@ -42,4 +42,4 @@ After completing any task, produce a short summary (a few sentences) of what was
 
 ## Tech stack (see DESIGN.md §11 for full detail)
 
-Next.js + Tailwind + shadcn/ui, Next.js API routes, Supabase (Postgres + Auth), Vercel (hosting + cron), API-Football for stats.
+TypeScript, Next.js 15 (App Router) + Tailwind + shadcn/ui, Next.js API routes / server actions, Drizzle ORM, Supabase (Postgres + Auth), Vercel (hosting + cron), API-Football for stats.
