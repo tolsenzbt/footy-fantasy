@@ -59,36 +59,39 @@ export async function getLeagueMembership(
   return membership ?? null;
 }
 
-export async function requireLeagueRole(
+/**
+ * Permission check for league-scoped actions. Throws (redirects) on failure;
+ * returns void on success.
+ *
+ * App admins (profiles.is_app_admin = true) always pass, regardless of
+ * whether they have a league_memberships row in this league.
+ *
+ * NOTE: This is permission-only. It does NOT return a LeagueMembership row.
+ * Callers that need to write a manager-attributed action to a per-league table
+ * (where manager_id FKs league_memberships.id) must separately call
+ * getLeagueMembership and handle the case where an app admin without a real
+ * membership row attempts a manager action. In that case the action should
+ * fail — the admin can correct DB state directly via Supabase dashboard per
+ * DESIGN.md §13.
+ *
+ * Typical usage:
+ *   await requireLeagueAccess(leagueId, ['commissioner', 'manager']);
+ *   const membership = await getLeagueMembership(leagueId);
+ *   if (!membership) throw new Error('No membership row for this league');
+ *   // safe to use membership.id as a FK
+ */
+export async function requireLeagueAccess(
   leagueId: string,
   roles: ("commissioner" | "manager")[]
-): Promise<LeagueMembership> {
+): Promise<void> {
   const profile = await requireAuth();
 
-  // App admin bypasses league role checks per DESIGN.md §9
-  if (profile.isAppAdmin) {
-    const membership = await getLeagueMembership(leagueId);
-    if (membership) return membership;
-
-    // Admin may not have a membership row — synthesise one so callers always
-    // get a LeagueMembership back.
-    return {
-      id: "admin-bypass",
-      leagueId,
-      userId: profile.id,
-      role: "commissioner",
-      displayName: profile.displayName,
-      eliminatedAtRound: null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-  }
+  // App admin bypasses league role checks per DESIGN.md §9.
+  if (profile.isAppAdmin) return;
 
   const membership = await getLeagueMembership(leagueId);
 
   if (!membership || !roles.includes(membership.role)) {
     redirect("/login");
   }
-
-  return membership;
 }
