@@ -17,6 +17,9 @@ tsconfig.tsbuildinfo
 # Vercel
 .vercel/
 
+# Seed script API cache
+cache/
+
 # OS
 .DS_Store
 
