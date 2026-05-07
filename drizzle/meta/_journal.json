@@ -29,6 +29,13 @@
       "when": 1778185714417,
       "tag": "0003_drop_admin_from_membership_role",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1778185867583,
+      "tag": "0004_handle_new_user_trigger",
+      "breakpoints": true
     }
   ]
 }
