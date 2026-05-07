@@ -7,17 +7,18 @@ out/
 
 # Build output
 dist/
+tsconfig.tsbuildinfo
 
 # Env files
 .env
 .env.local
 .env.*.local
 
-# Drizzle
-drizzle/meta/
-
 # Vercel
 .vercel/
+
+# Seed script API cache
+cache/
 
 # OS
 .DS_Store
