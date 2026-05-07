@@ -16,7 +16,6 @@ export const leagueStatus = pgEnum("league_status", [
 ]);
 
 export const membershipRole = pgEnum("membership_role", [
-  "admin",
   "commissioner",
   "manager",
 ]);
