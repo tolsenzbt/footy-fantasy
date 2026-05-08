@@ -40,6 +40,11 @@ Calibrate accordingly: skip primers on language/algorithm fundamentals, but a qu
 
 After completing any task, produce a short summary (a few sentences) of what was done, what files changed, and anything notable. The user pastes this back into a separate web chat for design-level discussion, so it should be self-contained and skim-friendly.
 
+## Scripts
+
+- `tsx --env-file=.env.local scripts/seed-league.ts` — creates a league with members. Edit the `CONFIG` block at the top of the file before running. All emails must already exist in `public.profiles`.
+- `tsx --env-file=.env.local scripts/start-draft.ts <leagueId> [startsAtISO]` — locks the league (status → `drafting`), generates a random draft order, and creates the initial draft row. `startsAt` is optional; omit to set via DB later.
+
 ## Tech stack (see DESIGN.md §11 for full detail)
 
 TypeScript, Next.js 15 (App Router) + Tailwind + shadcn/ui, Next.js API routes / server actions, Drizzle ORM, Supabase (Postgres + Auth), Vercel (hosting + cron), API-Football for stats.

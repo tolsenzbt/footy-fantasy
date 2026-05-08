@@ -21,7 +21,9 @@ export const drafts = pgTable(
     status: draftStatus("status").notNull().default("pending"),
     currentPickNumber: integer("current_pick_number"),
     pickClockSeconds: integer("pick_clock_seconds").notNull(),
+    startsAt: timestamp("starts_at", { withTimezone: true }),
     startedAt: timestamp("started_at", { withTimezone: true }),
+    currentPickStartedAt: timestamp("current_pick_started_at", { withTimezone: true }),
     completedAt: timestamp("completed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
