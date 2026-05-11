@@ -42,8 +42,13 @@ After completing any task, produce a short summary (a few sentences) of what was
 
 ## Scripts
 
-- `tsx --env-file=.env.local scripts/seed-league.ts` — creates a league with members. Edit the `CONFIG` block at the top of the file before running. All emails must already exist in `public.profiles`.
-- `tsx --env-file=.env.local scripts/start-draft.ts <leagueId> [startsAtISO]` — locks the league (status → `drafting`), generates a random draft order, and creates the initial draft row. `startsAt` is optional; omit to set via DB later.
+All scripts that import server-side code (e.g. `state.ts` which uses `server-only`) must use `--tsconfig tsconfig.scripts.json` to stub that package. Use the `npm run db:<name>` aliases below — they handle the flag automatically. Pass CLI args after `--`.
+
+- `npm run db:seed-league` — creates a league with members. Edit the `CONFIG` block at the top of the file before running. All emails must already exist in `public.profiles`.
+- `npm run db:start-draft -- <leagueId> [startsAtISO]` — locks the league (status → `drafting`), generates a random draft order, and creates the initial draft row. `startsAt` is optional; omit to set via DB later.
+- `npm run db:check-draft-state -- <leagueId>` — prints current draft state as JSON.
+- `npm run db:submit-pick -- <leagueId> <managerId> <playerId>` — submits a pick for the on-the-clock manager. Prints the result and new draft state.
+- `npm run db:submit-pick -- <leagueId> <managerId> --by-position <GK|DEF|MID|FWD>` — same but picks the first eligible (active, unrostered) player at that position alphabetically. Useful for driving a full draft without hand-copying UUIDs.
 
 ## Tech stack (see DESIGN.md §11 for full detail)
 

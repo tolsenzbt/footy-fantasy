@@ -10,7 +10,12 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
-    "db:seed": "tsx --env-file=.env.local scripts/seed.ts",
+    "db:seed": "tsx --tsconfig tsconfig.scripts.json --env-file=.env.local scripts/seed.ts",
+    "db:seed-league": "tsx --tsconfig tsconfig.scripts.json --env-file=.env.local scripts/seed-league.ts",
+    "db:start-draft": "tsx --tsconfig tsconfig.scripts.json --env-file=.env.local scripts/start-draft.ts",
+    "db:check-draft-state": "tsx --tsconfig tsconfig.scripts.json --env-file=.env.local scripts/check-draft-state.ts",
+    "db:submit-pick": "tsx --tsconfig tsconfig.scripts.json --env-file=.env.local scripts/submit-pick.ts",
+    "db:auto-draft": "tsx --tsconfig tsconfig.scripts.json --env-file=.env.local scripts/auto-draft.ts",
     "test": "vitest run"
   },
   "dependencies": {
