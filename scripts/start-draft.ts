@@ -15,7 +15,7 @@ import * as dotenv from "dotenv";
 dotenv.config({ path: ".env.local" });
 
 import { randomInt } from "crypto";
-import { db } from "../src/db";
+import { db, client } from "../src/db";
 import { leagues, leagueMemberships, drafts, draftOrder } from "../src/db/schema";
 import { eq, and } from "drizzle-orm";
 import { leagueSizeFromFormat } from "../src/lib/draft/snake";
@@ -156,7 +156,6 @@ async function main() {
   console.log();
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+main()
+  .then(async () => { await client.end(); process.exit(0); })
+  .catch(async (err) => { console.error(err); await client.end(); process.exit(1); });

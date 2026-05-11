@@ -15,7 +15,7 @@
 import fs from "fs";
 import path from "path";
 import readline from "readline";
-import { db } from "../src/db";
+import { db, client } from "../src/db";
 import { nations, players, realFixtures } from "../src/db/schema";
 import { recomputeAllNationStatus } from "../src/lib/nation-status";
 import { sql } from "drizzle-orm";
@@ -497,10 +497,8 @@ async function main() {
   console.log(`Nations with next_fixture_id set: ${results.nationStatusSet} / ${results.nationStatusTotal}`);
   console.log(`API requests — cache hits: ${cacheHits}, network: ${networkRequests}, total: ${cacheHits + networkRequests}`);
 
-  process.exit(0);
 }
 
-main().catch((err) => {
-  console.error("\nFATAL:", err);
-  process.exit(1);
-});
+main()
+  .then(async () => { await client.end(); process.exit(0); })
+  .catch(async (err) => { console.error("\nFATAL:", err); await client.end(); process.exit(1); });
