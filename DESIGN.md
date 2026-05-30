@@ -219,6 +219,16 @@ Scoring follows standard FPL conventions. No bonus points system (BPS).
 
 **Captain multiplier:** 2x all of the above for the captained player.
 
+### Scoring clarifications
+
+These resolve rule-level ambiguities the scoring table alone doesn't cover:
+
+- **Goals conceded are counted while-on-pitch only.** A player is charged the −1-per-2-conceded penalty only for goals their team concedes during the minutes they were on the field. Goals conceded after a player is substituted off (or sent off) do not count against them.
+- **Clean sheet is derived, not provided.** A player earns the clean-sheet bonus if they played 60+ minutes AND conceded 0 goals while on the pitch. A player subbed off before the 60th minute is ineligible regardless of the eventual result; a player subbed off at 60+ with 0 conceded to that point keeps the clean sheet even if their team concedes later.
+- **Red card voids the clean sheet but NOT appearance points.** A sent-off player still earns appearance points (1 or 2) for minutes played; the −3 and the clean-sheet void are independent of those points.
+
+The scoring engine is a pure function. It takes `minutesPlayed` and `concededWhileOnPitch` as numeric inputs and derives clean-sheet eligibility and the goals-conceded penalty itself — it does NOT accept a precomputed clean-sheet boolean or whole-match conceded total. Computing `concededWhileOnPitch` from match events and substitution data is the responsibility of the (separate, later) stats-ingestion layer.
+
 ---
 
 ## 7. Drafts
