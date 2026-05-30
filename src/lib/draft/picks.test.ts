@@ -6,16 +6,18 @@ vi.mock("server-only", () => ({}));
 
 // vi.mock factories are hoisted before variable declarations, so we must define
 // shared mock objects with vi.hoisted() to make them available in factories.
-const { mockDb, mockGetDraftState } = vi.hoisted(() => ({
+const { mockDb, mockGetDraftState, mockRunGroupDraw } = vi.hoisted(() => ({
   mockDb: {
     select: vi.fn(),
     transaction: vi.fn(),
   },
   mockGetDraftState: vi.fn(),
+  mockRunGroupDraw: vi.fn(),
 }));
 
 vi.mock("./state", () => ({ getDraftState: mockGetDraftState }));
 vi.mock("@/db", () => ({ db: mockDb }));
+vi.mock("@/lib/schedule/group-draw", () => ({ runGroupDraw: mockRunGroupDraw }));
 
 // Build a fluent Drizzle select-chain mock that resolves `result` at .limit()
 // or when awaited directly (for queries without .limit()).
@@ -126,6 +128,8 @@ beforeEach(() => {
   mockDb.transaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) =>
     fn(makeTxMock())
   );
+  // Default: runGroupDraw succeeds silently (only called on final pick).
+  mockRunGroupDraw.mockResolvedValue({ slotsAssigned: 8, groupMatchupsCreated: 12, knockoutMatchupsCreated: 7, fantasyRoundsCreated: 6 });
 });
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -331,7 +335,7 @@ describe("droppedPlayerId for initial draft", () => {
 });
 
 describe("final pick", () => {
-  it("transitions draft to complete and league to group_stage on pick 112 (8-team)", async () => {
+  it("transitions draft to complete on pick 112 (8-team) and triggers runGroupDraw", async () => {
     const totalPicks = 14 * 8; // 112
     mockGetDraftState.mockResolvedValue({
       ...activeState,
@@ -362,9 +366,43 @@ describe("final pick", () => {
     expect(draftUpdate.currentPickStartedAt).toBeNull();
     expect(draftUpdate.completedAt).toBeInstanceOf(Date);
 
-    // leagues.status is NOT touched — it stays 'drafting' until the group
-    // stage begins via a separate cron/event.
+    // leagues.status is NOT touched — state machine transition is admin-driven.
     expect(capturedTx!._updateSetMocks).toHaveLength(1);
+
+    // runGroupDraw is called (schedule_slots will be created)
+    expect(mockRunGroupDraw).toHaveBeenCalledWith(LEAGUE_ID);
+  });
+
+  it("runGroupDraw failure does not roll back the pick", async () => {
+    const totalPicks = 14 * 8;
+    mockGetDraftState.mockResolvedValue({
+      ...activeState,
+      draft: { ...activeDraftBase, currentPickNumber: totalPicks },
+    });
+
+    const finalDraft = { ...activeDraftBase, currentPickNumber: totalPicks };
+    mockDb.transaction.mockImplementationOnce(async (fn: (tx: unknown) => Promise<unknown>) =>
+      fn(makeTxMock(finalDraft))
+    );
+    setupSelects();
+
+    mockRunGroupDraw.mockRejectedValueOnce(new Error("draw exploded"));
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = await submitPick({
+      leagueId: LEAGUE_ID,
+      draftType: "initial",
+      managerId: MANAGER_ID,
+      playerId: PLAYER_ID,
+    });
+
+    // Pick succeeded despite runGroupDraw failing
+    expect(result).toEqual({ pickNumber: totalPicks, isFinalPick: true });
+
+    // Give the rejection handler a chance to run
+    await Promise.resolve();
+    expect(errorSpy).toHaveBeenCalled();
+    errorSpy.mockRestore();
   });
 });
 

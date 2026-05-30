@@ -16,6 +16,7 @@
     "db:check-draft-state": "tsx --tsconfig tsconfig.scripts.json --env-file=.env.local scripts/check-draft-state.ts",
     "db:submit-pick": "tsx --tsconfig tsconfig.scripts.json --env-file=.env.local scripts/submit-pick.ts",
     "db:auto-draft": "tsx --tsconfig tsconfig.scripts.json --env-file=.env.local scripts/auto-draft.ts",
+    "db:run-group-draw": "tsx --tsconfig tsconfig.scripts.json --env-file=.env.local scripts/run-group-draw.ts",
     "test": "vitest run"
   },
   "dependencies": {

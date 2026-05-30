@@ -5,6 +5,7 @@ import { players } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { getDraftState } from "./state";
 import { leagueSizeFromFormat } from "./snake";
+import { runGroupDraw } from "@/lib/schedule/group-draw";
 
 const POSITION_MAX: Record<string, number> = {
   GK: 2,
@@ -167,6 +168,12 @@ export async function submitPick(args: {
         .where(eq(drafts.id, lockedDraft.id));
     }
   });
+
+  if (isFinalPick) {
+    runGroupDraw(args.leagueId).catch((err) => {
+      console.error("runGroupDraw failed after final pick:", err);
+    });
+  }
 
   return { pickNumber, isFinalPick };
 }
