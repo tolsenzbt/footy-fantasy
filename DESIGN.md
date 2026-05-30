@@ -185,7 +185,7 @@ Total must equal exactly 14, AND each position must fall within its range.
 ### Lineup lock
 - A player is **locked** the moment their nation's match kicks off
 - Locked players cannot be moved out of the starting XI for that match
-- Captain/Vice-Captain selection locks at the same time (per-player, when their nation kicks off)
+- - Captain selection locks when the captained player's nation kicks off, independently of VC. VC selection locks when the VC'd player's nation kicks off. Before lock, captain/VC may be reassigned to any non-locked starter.
 - Other players (whose nations haven't kicked off yet) remain freely movable
 
 ### Auto-rollover
