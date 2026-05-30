@@ -20,12 +20,12 @@ import { nations, players, realFixtures } from "../src/db/schema";
 import { recomputeAllNationStatus } from "../src/lib/nation-status";
 import { sql } from "drizzle-orm";
 
-// ─── SWITCH THESE TWO LINES WHEN UPGRADING TO PAID PLAN ───────────────────────
-const WC_LEAGUE_ID = 1;   // FIFA World Cup
-const WC_SEASON = 2022;   // SWITCH TO 2026 WHEN PAID PLAN IS ACTIVE (≈ June 1)
-// ──────────────────────────────────────────────────────────────────────────────
+import {
+  WC_LEAGUE_ID,
+  WC_SEASON,
+  apiFetch as apiFetchRaw,
+} from "../src/lib/api-football";
 
-const API_BASE = "https://v3.football.api-sports.io";
 const CACHE_DIR = path.join(process.cwd(), "cache", "api-football");
 // Free tier: 10 req/min → 7000ms gives safe headroom (≈8.5 req/min)
 // Pro tier: 450 req/min → drop to ~150ms when flipping WC_SEASON to 2026
@@ -88,21 +88,9 @@ async function apiFetch(
     return cached;
   }
 
-  const url = new URL(`${API_BASE}${endpoint}`);
-  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, String(v));
-
   console.log(`  [net]   ${endpoint} ${JSON.stringify(params)}`);
-  const res = await fetch(url.toString(), {
-    headers: { "x-apisports-key": API_KEY! },
-  });
-
-  if (!res.ok) throw new Error(`API error ${res.status} for ${url}`);
-  const data = await res.json() as Record<string, unknown>;
+  const { data } = await apiFetchRaw(API_KEY!, endpoint, params);
   networkRequests++;
-
-  if (data.errors && typeof data.errors === "object" && Object.keys(data.errors as object).length > 0) {
-    throw new Error(`API returned errors: ${JSON.stringify(data.errors)}`);
-  }
 
   writeCache(file, data);
   await sleep(RATE_LIMIT_MS);
