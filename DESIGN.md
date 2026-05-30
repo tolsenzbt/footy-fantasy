@@ -129,6 +129,10 @@ The schema must track these as separate concepts.
 
 (`1A` = 1st-place finisher of Group A, etc.)
 
+### Bye representation (8-team only)
+
+In the 8-team format, 1A and 1B receive first-round byes. These are stored in `fantasy_matchups` as concrete rows with `away_seed_source='BYE'`, `away_manager_id=null`, `away_score=null`. The matchup auto-resolves in favor of the home (real) participant regardless of their score. The reserved string `'BYE'` is the sentinel for this case.
+
 ---
 
 ## 4. Group Draw Event
