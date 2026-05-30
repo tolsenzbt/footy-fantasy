@@ -1,6 +1,6 @@
 // ─── SWITCH THESE TWO LINES WHEN UPGRADING TO THE 2026 PAID PLAN ─────────────
 export const WC_LEAGUE_ID = 1;   // FIFA World Cup
-export const WC_SEASON = 2022;   // switch to 2026 when paid plan coverage is active
+export const WC_SEASON = 2026;   // switched to 2026 — paid plan active, data confirmed
 // ──────────────────────────────────────────────────────────────────────────────
 
 export const API_FOOTBALL_BASE = "https://v3.football.api-sports.io";
