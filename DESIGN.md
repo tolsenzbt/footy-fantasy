@@ -267,6 +267,9 @@ No live free agency during matches. All player movement is committed before kick
 - **Group stage:** Initial order is reverse of initial draft order. Successful claims send claimant to bottom; others shift up. Failed claims do not affect priority. Priority persists through entire group stage.
 - **Knockouts:** Priority resets after the redraft. New order = reverse of redraft order. Eliminated managers are removed.
 
+### Multiple claims per event
+A manager may win more than one player in a single processing event. After a successful claim drops the manager to the bottom of priority, they remain eligible for further awards on subsequent resolver passes as long as they have open roster spots and remaining ranked claims. Players continue to fall to a manager at lowest priority if no higher-priority manager claims them.
+
 ### Waiver triggers
 A player enters waivers when:
 1. **Their nation kicks off a match** (rostered or not — they're locked from changes during the match)
@@ -290,7 +293,7 @@ If a player is on waivers and their nation kicks off their next match before wai
 A dropped player sits on waivers for 24 hours minimum, then follows standard processing rules.
 
 ### Conditional drops
-Waiver claims can include a "drop-if-successful" designation. If multiple claims share the same drop player and the first succeeds, subsequent claims auto-void.
+Waiver claims can include a "drop-if-successful" designation. A conditional drop may only target a player on the claimant's own roster. A manager's claims are ranked; the resolver takes their highest-ranked claim that is still available and fits an open roster spot (opening one via the conditional drop if specified). Once a claim succeeds, the manager's lower-ranked claims sharing that drop player are dead by roster-space — this is what "auto-void" means. There is no cross-manager auto-void.
 
 ### Initial draft aftermath
 All undrafted players sit on waivers for 24 hours after the draft concludes, then become free agents.
@@ -446,7 +449,7 @@ The admin (project owner) has full access to the underlying database and can per
 
 **Operations handled via DB:**
 - Manual stat / fantasy point override
-- Manual waiver controls (process, undo)
+- Manual waiver controls (process); corrections via direct roster moves, not waiver-event undo
 - Lineup reset for any manager
 - Initial draft order override
 - Group assignment override (manual entry)
