@@ -396,6 +396,13 @@ Each nation tracks two derived fields:
 
 Player-level status (eliminated vs. active, next match info) is **always derived from the player's nation via join**, never stored on the player. When a real-world fixture finalizes, a background job recomputes affected nations' `next_fixture_id` and sets `eliminated_at_round` on any nation that was knocked out by that fixture.
 
+### Ownership status (distinct from nation status)
+Nation status (above) is derived and never stored on the player. **Ownership** status — whether a player is rostered, on waivers, or a free agent *within a given league* — is a separate axis and IS stored. It cannot be derived from nation: two leagues have different ownership maps over the same player pool.
+
+Ownership is tracked in `waiver_player_status` (`league_id`, `player_id`, `status`, `eligible_at`, `current_fantasy_round_id`). The `waiver_availability_status` enum is `rostered | on_waivers | free_agent`. This is the authoritative ownership source the waiver/FA logic branches on.
+
+The `rosters` table independently encodes roster membership. These two are dual sources for the rostered case and MUST stay consistent: every ownership transition (award, drop, FCFS pickup) writes both `rosters` and `waiver_player_status` inside a single `db.transaction`. An invariant test asserts they never disagree. (Earlier design framing treated ownership as derived from row presence with no status enum; the implemented model stores it explicitly. This subsection reflects what is built.)
+
 The UI displays each player's nation status as either the next fixture (opponent + kickoff time) when active, or "Eliminated" when not.
 
 ---
@@ -550,7 +557,7 @@ Remaining major engineering phases before MVP:
 - Initial async snake draft system
 - Group draw event UI + slot assignment → schedule generation
 - Lineup setting (formation validation, captain/VC, per-player kickoff lock)
-- Stats ingestion job (API-Football polling + fantasy point calculation)
+- Stats ingestion job (API-Football polling + fantasy point calculation). Includes the §8 waiver-extension rule (nation kicks off before processing → bump to next round), deferred to this phase because it requires real fixture kickoff times. Resolver round columns already exist; this is resolver logic + a stubbed-kickoff test, no migration.
 - Free agency + waivers (drop window, weekly processing, claim resolution)
 - Matchup view + group standings + knockout bracket display
 - Mass-release event at end of group stage + supplemental redraft
