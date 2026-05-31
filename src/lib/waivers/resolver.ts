@@ -101,7 +101,8 @@ export function processWaivers(snapshot: WaiverSnapshot): WaiverResult {
       const pending = allClaims.filter((c) => !processedClaims.has(c.id));
       if (pending.length === 0) continue;
 
-      const roster = effectiveRosters.get(managerId) ?? new Set<string>();
+      if (!effectiveRosters.has(managerId)) effectiveRosters.set(managerId, new Set());
+      const roster = effectiveRosters.get(managerId)!;
 
       // Find first claim that can be awarded now
       let awardedClaim: WaiverClaim | null = null;

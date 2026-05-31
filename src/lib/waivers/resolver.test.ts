@@ -513,3 +513,51 @@ describe("waiver extension: player not in availablePlayers is not processed", ()
     expect(result.transactions[0].claimId).toBe("c1");
   });
 });
+
+// ── Regression: manager absent from roster map respects maxRosterSize ─────────
+// Before the fix (line ~104), `effectiveRosters.get(managerId) ?? new Set()` created
+// a throwaway Set on every lookup, so a manager absent from snapshot.rosters always
+// appeared to have 0 players and could be awarded without bound.
+
+describe("regression: manager absent from snapshot.rosters obeys maxRosterSize", () => {
+  it("manager with no roster map entry is awarded at most maxRosterSize players", () => {
+    // m1 is intentionally absent from the rosters Map (not even an empty Set).
+    // It has 3 ranked claims and maxRosterSize=2.
+    // Before the fix: all 3 would be awarded (size always 0).
+    // After the fix: only 2 awarded (size accumulates correctly).
+    const snapshot: WaiverSnapshot = {
+      priorityOrder: [{ managerId: "m1", priority: 1 }],
+      claims: [
+        { id: "c1", managerId: "m1", playerId: "pA", dropPlayerId: null, rank: 1 },
+        { id: "c2", managerId: "m1", playerId: "pB", dropPlayerId: null, rank: 2 },
+        { id: "c3", managerId: "m1", playerId: "pC", dropPlayerId: null, rank: 3 },
+      ],
+      rosters: new Map(), // m1 is absent — not even present with an empty Set
+      availablePlayers: new Set(["pA", "pB", "pC"]),
+      maxRosterSize: 2,
+    };
+
+    const result = processWaivers(snapshot);
+    const awards = byType(result.transactions, "award");
+    expect(awards.length).toBeLessThanOrEqual(2);
+    expect(awards).toHaveLength(2); // exactly 2: pA and pB
+  });
+
+  it("second player awarded fills the slot created by first award (accumulation check)", () => {
+    const snapshot: WaiverSnapshot = {
+      priorityOrder: [{ managerId: "m1", priority: 1 }],
+      claims: [
+        { id: "c1", managerId: "m1", playerId: "pA", dropPlayerId: null, rank: 1 },
+        { id: "c2", managerId: "m1", playerId: "pB", dropPlayerId: null, rank: 2 },
+      ],
+      rosters: new Map(),
+      availablePlayers: new Set(["pA", "pB"]),
+      maxRosterSize: 1,
+    };
+
+    const result = processWaivers(snapshot);
+    const awards = byType(result.transactions, "award");
+    expect(awards).toHaveLength(1);
+    expect(awards[0].playerId).toBe("pA"); // only first (highest-ranked) claim wins
+  });
+});
