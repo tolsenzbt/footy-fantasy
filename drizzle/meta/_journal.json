@@ -43,6 +43,13 @@
       "when": 1778205757831,
       "tag": "0005_add_draft_timing_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1780189686087,
+      "tag": "0006_add_waiver_claim_rank",
+      "breakpoints": true
     }
   ]
 }

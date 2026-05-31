@@ -102,6 +102,7 @@ export const waiverClaims = pgTable("waiver_claims", {
     .notNull()
     .references(() => players.id),
   dropPlayerId: uuid("drop_player_id").references(() => players.id),
+  rank: integer("rank").notNull().default(1),
   priorityAtSubmit: integer("priority_at_submit").notNull(),
   status: waiverClaimStatus("status").notNull().default("pending"),
   submittedAt: timestamp("submitted_at", { withTimezone: true })

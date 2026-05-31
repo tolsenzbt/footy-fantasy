@@ -1,0 +1,1 @@
+ALTER TABLE "waiver_claims" ADD COLUMN "rank" integer DEFAULT 1 NOT NULL;
