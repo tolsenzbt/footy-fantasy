@@ -5,35 +5,7 @@ import { players, nations, realFixtures } from "@/db/schema";
 import { playerMatchStats, playerMatchScores } from "@/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
 import { getLineup, type LineupReadResult } from "@/lib/lineup/read";
-import { applyCaptainMultiplier } from "@/lib/scoring/engine";
-
-// Compute a manager's round total from materialized player_match_scores.
-// base = overridePoints ?? points from player_match_scores (missing row → 0).
-// Captain/VC multiplier applied on top of those bases, matching scoreStartingXI rules:
-//   - captainPlayed = captainMinutesPlayed > 0 (from player_match_stats)
-//   - vcPromotes = !captainPlayed && vcPlayerId !== null
-//   - the one recipient (captain or promoting VC) gets 2x; no-VC, no-play → 1x all
-function computeManagerScoreFromBases(
-  starters: Array<{ playerId: string }>,
-  basesMap: Map<string, number>,       // playerId → effective base (override ?? points ?? 0)
-  captainPlayerId: string | null,
-  vcPlayerId: string | null,
-  captainMinutesPlayed: number,        // 0 if no stats row or no captain set
-): number {
-  if (!captainPlayerId) {
-    return starters.reduce((sum, s) => sum + (basesMap.get(s.playerId) ?? 0), 0);
-  }
-
-  const captainPlayed = captainMinutesPlayed > 0;
-  const vcPromotes = !captainPlayed && vcPlayerId !== null;
-  const recipientId = vcPromotes ? vcPlayerId! : captainPlayerId;
-  const recipientBonus = captainPlayed || vcPromotes;
-
-  return starters.reduce((sum, { playerId }) => {
-    const base = basesMap.get(playerId) ?? 0;
-    return sum + applyCaptainMultiplier(base, recipientBonus && playerId === recipientId);
-  }, 0);
-}
+import { scoreLineupBases } from "./score";
 
 export async function resolveMatchups(
   leagueId: string,
@@ -242,11 +214,11 @@ function scoreLineup(
   const lineup = lineupByManager.get(managerId);
   if (!lineup) return 0;
   const starters = lineup.slots.filter((s) => s.slotType === "starter");
-  return computeManagerScoreFromBases(
+  return scoreLineupBases(
     starters,
     basesMap,
     lineup.captainPlayerId,
     lineup.vcPlayerId ?? null,
     captainMinutesMap.get(lineup.captainPlayerId ?? "") ?? 0,
-  );
+  ).total;
 }
