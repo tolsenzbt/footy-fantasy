@@ -122,10 +122,12 @@ The schema must track these as separate concepts.
 **Knockout qualification:** Top 3 from each group → 6 advance.
 
 **Bracket structure (uses group standings, not schedule slots):**
-- 1A and 1B receive first-round byes
-- `qf`: 2A vs 3B, 2B vs 3A
-- `sf`: 1A vs (2B/3A winner), 1B vs (2A/3B winner)
+- 1A and 1B receive first-round byes, represented as concrete `qf` matchups against a BYE (see "Bye representation" below), not as absence from the round
+- `qf`: 2A vs 3B, 2B vs 3A, 1A vs BYE, 1B vs BYE
+- `sf`: (1A/BYE winner) vs (2A/3B winner), (1B/BYE winner) vs (2B/3A winner)
 - `final`: `sf` winners
+
+The bye matchups auto-resolve in favor of 1A/1B at seed resolution (no scores needed); the effect is identical to a first-round bye — 1A/1B advance to `sf` — but every advancing manager occupies a `qf` row so the bracket has one uniform shape across rounds.
 
 (`1A` = 1st-place finisher of Group A, etc.)
 
