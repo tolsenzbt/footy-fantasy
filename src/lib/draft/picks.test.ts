@@ -15,9 +15,14 @@ const { mockDb, mockGetDraftState, mockRunGroupDraw } = vi.hoisted(() => ({
   mockRunGroupDraw: vi.fn(),
 }));
 
+const { mockSubmitRedraftPick } = vi.hoisted(() => ({
+  mockSubmitRedraftPick: vi.fn(),
+}));
+
 vi.mock("./state", () => ({ getDraftState: mockGetDraftState }));
 vi.mock("@/db", () => ({ db: mockDb }));
 vi.mock("@/lib/schedule/group-draw", () => ({ runGroupDraw: mockRunGroupDraw }));
+vi.mock("./redraft", () => ({ submitRedraftPick: mockSubmitRedraftPick }));
 
 // Build a fluent Drizzle select-chain mock that resolves `result` at .limit()
 // or when awaited directly (for queries without .limit()).
@@ -134,11 +139,22 @@ beforeEach(() => {
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
-describe("redraft guard", () => {
-  it("throws 'not yet implemented' for draftType=redraft", async () => {
-    await expect(
-      submitPick({ leagueId: LEAGUE_ID, draftType: "redraft", managerId: MANAGER_ID, playerId: PLAYER_ID })
-    ).rejects.toThrow("not yet implemented");
+describe("redraft routing", () => {
+  it("delegates draftType=redraft to submitRedraftPick", async () => {
+    mockSubmitRedraftPick.mockResolvedValueOnce({ pickNumber: 1, isComplete: false });
+    const result = await submitPick({
+      leagueId: LEAGUE_ID,
+      draftType: "redraft",
+      managerId: MANAGER_ID,
+      playerId: PLAYER_ID,
+    });
+    expect(mockSubmitRedraftPick).toHaveBeenCalledWith({
+      leagueId: LEAGUE_ID,
+      managerId: MANAGER_ID,
+      playerId: PLAYER_ID,
+      dropPlayerId: undefined,
+    });
+    expect(result).toEqual({ pickNumber: 1, isComplete: false });
   });
 });
 

@@ -8,6 +8,10 @@ export const leagues = pgTable("leagues", {
   format: leagueFormat("format").notNull(),
   status: leagueStatus("status").notNull().default("setup"),
   lockedAt: timestamp("locked_at", { withTimezone: true }),
+  massReleaseCompletedAt: timestamp("mass_release_completed_at", { withTimezone: true }),
+  redraftPoolFrozenAt: timestamp("redraft_pool_frozen_at", { withTimezone: true }),
+  priorityResetCompletedAt: timestamp("priority_reset_completed_at", { withTimezone: true }),
+  knockoutFirstEventScheduledAt: timestamp("knockout_first_event_scheduled_at", { withTimezone: true }),
   createdBy: uuid("created_by")
     .notNull()
     .references(() => profiles.id),

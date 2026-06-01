@@ -74,3 +74,8 @@ export const waiverPriorityPhase = pgEnum("waiver_priority_phase", [
   "group_stage",
   "knockouts",
 ]);
+
+export const dropReasonType = pgEnum("drop_reason_type", [
+  "mass_release",
+  "manager_drop",
+]);

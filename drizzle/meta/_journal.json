@@ -51,5 +51,12 @@
       "tag": "0006_add_waiver_claim_rank",
       "breakpoints": true
     }
+    ,{
+      "idx": 7,
+      "version": "7",
+      "when": 1780276086087,
+      "tag": "0007_redraft_and_mass_release",
+      "breakpoints": true
+    }
   ]
 }

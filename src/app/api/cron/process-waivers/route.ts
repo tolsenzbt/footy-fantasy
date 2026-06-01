@@ -10,6 +10,7 @@ import {
   leagues,
   players,
   nations,
+  fantasyRounds,
 } from "@/db/schema";
 import { eq, and, lte, inArray } from "drizzle-orm";
 import {
@@ -17,12 +18,13 @@ import {
   type WaiverSnapshot,
   type WaiverTransaction,
 } from "@/lib/waivers/resolver";
+import { applyOwnershipTransition } from "@/lib/waivers/ownership";
+import { runMassRelease } from "@/lib/waivers/mass-release";
 
 // Vercel Cron: scheduled daily at 5am ET (10:00 UTC)
 // vercel.json: { "crons": [{ "path": "/api/cron/process-waivers", "schedule": "0 10 * * *" }] }
 
 export async function GET(req: NextRequest) {
-  // Verify Vercel Cron secret
   const authHeader = req.headers.get("authorization");
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -30,7 +32,6 @@ export async function GET(req: NextRequest) {
 
   const now = new Date();
 
-  // Find all pending processing events due now
   const pendingEvents = await db
     .select({
       id: waiverProcessingEvents.id,
@@ -51,13 +52,20 @@ export async function GET(req: NextRequest) {
     leagueId: string;
     processed: boolean;
     awards: number;
+    massReleaseDropped?: number;
     error?: string;
   }> = [];
 
   for (const event of pendingEvents) {
     try {
       const stats = await processLeagueWaivers(event.leagueId, event.id, event.fantasyRoundId, now);
-      results.push({ eventId: event.id, leagueId: event.leagueId, processed: true, awards: stats.awards });
+      results.push({
+        eventId: event.id,
+        leagueId: event.leagueId,
+        processed: true,
+        awards: stats.awards,
+        massReleaseDropped: stats.massReleaseDropped,
+      });
     } catch (err) {
       console.error(`Error processing waivers for league ${event.leagueId}:`, err);
       results.push({
@@ -78,8 +86,7 @@ async function processLeagueWaivers(
   eventId: string,
   fantasyRoundId: string,
   now: Date
-): Promise<{ awards: number }> {
-  // Get league phase for priority lookup
+): Promise<{ awards: number; massReleaseDropped?: number }> {
   const [league] = await db
     .select({ status: leagues.status })
     .from(leagues)
@@ -91,7 +98,6 @@ async function processLeagueWaivers(
   const phase: "group_stage" | "knockouts" =
     league.status === "knockouts" ? "knockouts" : "group_stage";
 
-  // Build snapshot
   const [priorityRows, claimRows, rosterRows, availableRows] =
     await Promise.all([
       db
@@ -134,7 +140,6 @@ async function processLeagueWaivers(
         ),
     ]);
 
-  // Build rosters map
   const rostersByManager = new Map<string, Set<string>>();
   for (const { managerId, playerId } of rosterRows) {
     if (!rostersByManager.has(managerId)) {
@@ -153,63 +158,42 @@ async function processLeagueWaivers(
 
   const { transactions, finalPriorityOrder } = processWaivers(snapshot);
 
-  // Apply results in a transaction
   await db.transaction(async (tx) => {
     const awardTxs = transactions.filter(
       (t): t is Extract<WaiverTransaction, { type: "award" }> => t.type === "award"
     );
-    const nonAwardClaimIds = transactions
-      .filter((t) => t.type !== "award")
+    const failedIds = transactions
+      .filter((t) => t.type === "fail" || t.type === "invalid")
+      .map((t) => t.claimId);
+    const voidedIds = transactions
+      .filter((t) => t.type === "void")
       .map((t) => t.claimId);
 
-    // 1. Apply awards
+    // Apply awards via shared ownership helper
     for (const award of awardTxs) {
-      // Add awarded player to roster
-      await tx.insert(rosters).values({
+      await applyOwnershipTransition(
+        tx,
         leagueId,
-        managerId: award.managerId,
-        playerId: award.playerId,
-        acquiredVia: "waiver",
-      });
+        award.playerId,
+        { to: "rostered", managerId: award.managerId, acquiredVia: "waiver" },
+        now
+      );
 
-      // Mark player as rostered
-      await tx
-        .insert(waiverPlayerStatus)
-        .values({ leagueId, playerId: award.playerId, status: "rostered" })
-        .onConflictDoUpdate({
-          target: [waiverPlayerStatus.leagueId, waiverPlayerStatus.playerId],
-          set: { status: "rostered", eligibleAt: null, updatedAt: now },
-        });
-
-      // Execute conditional drop
       if (award.dropPlayerId) {
-        await tx
-          .delete(rosters)
-          .where(
-            and(
-              eq(rosters.leagueId, leagueId),
-              eq(rosters.managerId, award.managerId),
-              eq(rosters.playerId, award.dropPlayerId)
-            )
-          );
-
-        // Dropped player goes on waivers
-        const eligibleAt = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-        await tx
-          .insert(waiverPlayerStatus)
-          .values({
-            leagueId,
-            playerId: award.dropPlayerId,
-            status: "on_waivers",
-            eligibleAt,
-          })
-          .onConflictDoUpdate({
-            target: [waiverPlayerStatus.leagueId, waiverPlayerStatus.playerId],
-            set: { status: "on_waivers", eligibleAt, updatedAt: now },
-          });
+        await applyOwnershipTransition(
+          tx,
+          leagueId,
+          award.dropPlayerId,
+          {
+            to: "on_waivers",
+            dropReason: "manager_drop",
+            droppedByManagerId: award.managerId,
+            eligibleAt: new Date(now.getTime() + 24 * 60 * 60 * 1000),
+          },
+          now
+        );
       }
 
-      // Mark claim as processed_success
       await tx
         .update(waiverClaims)
         .set({
@@ -221,44 +205,33 @@ async function processLeagueWaivers(
         .where(eq(waiverClaims.id, award.claimId));
     }
 
-    // 2. Mark non-award claims
-    if (nonAwardClaimIds.length > 0) {
-      // fail/invalid → processed_failed; void → voided
-      const failedIds = transactions
-        .filter((t) => t.type === "fail" || t.type === "invalid")
-        .map((t) => t.claimId);
-      const voidedIds = transactions
-        .filter((t) => t.type === "void")
-        .map((t) => t.claimId);
-
-      if (failedIds.length > 0) {
-        await tx
-          .update(waiverClaims)
-          .set({
-            status: "processed_failed",
-            processedAt: now,
-            processingEventId: eventId,
-            failureReason: "not_available_or_invalid",
-            updatedAt: now,
-          })
-          .where(inArray(waiverClaims.id, failedIds));
-      }
-
-      if (voidedIds.length > 0) {
-        await tx
-          .update(waiverClaims)
-          .set({
-            status: "voided",
-            processedAt: now,
-            processingEventId: eventId,
-            failureReason: "drop_already_used",
-            updatedAt: now,
-          })
-          .where(inArray(waiverClaims.id, voidedIds));
-      }
+    if (failedIds.length > 0) {
+      await tx
+        .update(waiverClaims)
+        .set({
+          status: "processed_failed",
+          processedAt: now,
+          processingEventId: eventId,
+          failureReason: "not_available_or_invalid",
+          updatedAt: now,
+        })
+        .where(inArray(waiverClaims.id, failedIds));
     }
 
-    // 3. Update priority order
+    if (voidedIds.length > 0) {
+      await tx
+        .update(waiverClaims)
+        .set({
+          status: "voided",
+          processedAt: now,
+          processingEventId: eventId,
+          failureReason: "drop_already_used",
+          updatedAt: now,
+        })
+        .where(inArray(waiverClaims.id, voidedIds));
+    }
+
+    // Update priority order
     for (const entry of finalPriorityOrder) {
       await tx
         .update(waiverPriority)
@@ -272,17 +245,36 @@ async function processLeagueWaivers(
         );
     }
 
-    // 4. Resolve remaining on-waivers players (no claims this round)
-    await resolveRemainingWaivers(tx, leagueId, now, availableRows.map(r => r.playerId), awardTxs.map(t => t.playerId));
+    await resolveRemainingWaivers(
+      tx,
+      leagueId,
+      now,
+      availableRows.map((r) => r.playerId),
+      awardTxs.map((t) => t.playerId)
+    );
 
-    // 5. Mark processing event as done
     await tx
       .update(waiverProcessingEvents)
       .set({ status: "processed", processedAt: now, updatedAt: now })
       .where(eq(waiverProcessingEvents.id, eventId));
   });
 
-  return { awards: transactions.filter((t) => t.type === "award").length };
+  // Phase 2: mass-release runs after group_md3 normal processing (§8)
+  let massReleaseDropped: number | undefined;
+  if (league.status === "group_stage") {
+    const [roundRow] = await db
+      .select({ round: fantasyRounds.round })
+      .from(fantasyRounds)
+      .where(eq(fantasyRounds.id, fantasyRoundId))
+      .limit(1);
+
+    if (roundRow?.round === "group_md3") {
+      const result = await runMassRelease(leagueId);
+      massReleaseDropped = result.dropped;
+    }
+  }
+
+  return { awards: transactions.filter((t) => t.type === "award").length, massReleaseDropped };
 }
 
 async function resolveRemainingWaivers(
@@ -297,7 +289,6 @@ async function resolveRemainingWaivers(
   const unclaimed = eligiblePlayerIds.filter((id) => !awardedSet.has(id));
   if (unclaimed.length === 0) return;
 
-  // Check nation status for unclaimed players
   const nationRows = await tx
     .select({
       playerId: players.id,
@@ -309,19 +300,14 @@ async function resolveRemainingWaivers(
     .where(inArray(players.id, unclaimed));
 
   const freeAgentIds: string[] = [];
-  const reWaiverIds: string[] = [];
 
   for (const row of nationRows) {
-    if (row.nextFixtureId && !row.eliminatedAtRound) {
-      // Nation has another match: player re-enters waivers for next round
-      reWaiverIds.push(row.playerId);
-    } else {
-      // Nation eliminated or no more matches: player becomes free agent
+    if (!row.nextFixtureId || row.eliminatedAtRound) {
       freeAgentIds.push(row.playerId);
     }
+    // Nation has another match → leave on_waivers, no change needed
   }
 
-  // Players not found in nationRows (data issue): default to free agent
   const foundIds = new Set(nationRows.map((r: { playerId: string }) => r.playerId));
   for (const id of unclaimed) {
     if (!foundIds.has(id)) freeAgentIds.push(id);
@@ -330,7 +316,13 @@ async function resolveRemainingWaivers(
   if (freeAgentIds.length > 0) {
     await tx
       .update(waiverPlayerStatus)
-      .set({ status: "free_agent", eligibleAt: null, updatedAt: now })
+      .set({
+        status: "free_agent",
+        eligibleAt: null,
+        dropReason: null,
+        droppedByManagerId: null,
+        updatedAt: now,
+      })
       .where(
         and(
           eq(waiverPlayerStatus.leagueId, leagueId),
@@ -338,7 +330,4 @@ async function resolveRemainingWaivers(
         )
       );
   }
-
-  // For re-waiver players: leave status as on_waivers; eligibleAt will be set
-  // when the next processing event is scheduled. No-op here.
 }
