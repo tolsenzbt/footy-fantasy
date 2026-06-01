@@ -6,6 +6,9 @@ import { eq, and } from "drizzle-orm";
 import { getDraftState } from "./state";
 import { leagueSizeFromFormat } from "./snake";
 import { runGroupDraw } from "@/lib/schedule/group-draw";
+import { submitRedraftPick } from "./redraft";
+
+const INITIAL_DRAFT_ROUNDS = 14;
 
 const POSITION_MAX: Record<string, number> = {
   GK: 2,
@@ -22,7 +25,12 @@ export async function submitPick(args: {
   droppedPlayerId?: string;
 }): Promise<{ pickNumber: number; isFinalPick: boolean }> {
   if (args.draftType === "redraft") {
-    throw new Error("Redraft pick submission is not yet implemented.");
+    return submitRedraftPick({
+      leagueId: args.leagueId,
+      managerId: args.managerId,
+      playerId: args.playerId,
+      dropPlayerId: args.droppedPlayerId,
+    });
   }
 
   const now = new Date();
@@ -106,7 +114,7 @@ export async function submitPick(args: {
   if (!league) throw new Error(`League ${args.leagueId} not found.`);
 
   const leagueSize = leagueSizeFromFormat(league.format);
-  const totalPicks = 14 * leagueSize;
+  const totalPicks = INITIAL_DRAFT_ROUNDS * leagueSize;
   const pickNumber = state.draft.currentPickNumber!;
   const isFinalPick = pickNumber === totalPicks;
 

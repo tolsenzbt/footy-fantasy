@@ -10,6 +10,10 @@ import { leagueMemberships, leagues } from "./league";
 import { players } from "./tournament";
 import { draftStatus, draftType } from "./enums";
 
+// NOTE: current_pick_deadline is the server-authoritative expiry for the active pick.
+// Populated at pick start; the initial draft uses pick_clock_seconds+current_pick_started_at
+// for backwards compat, but the redraft stores the deadline directly for sub-minute clocks.
+
 export const drafts = pgTable(
   "drafts",
   {
@@ -24,6 +28,7 @@ export const drafts = pgTable(
     startsAt: timestamp("starts_at", { withTimezone: true }),
     startedAt: timestamp("started_at", { withTimezone: true }),
     currentPickStartedAt: timestamp("current_pick_started_at", { withTimezone: true }),
+    currentPickDeadline: timestamp("current_pick_deadline", { withTimezone: true }),
     completedAt: timestamp("completed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -47,6 +52,7 @@ export const draftOrder = pgTable(
       .notNull()
       .references(() => leagueMemberships.id),
     hasPassed: boolean("has_passed").notNull().default(false),
+    optedOut: boolean("opted_out").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

@@ -9,7 +9,7 @@ import {
 import { leagueMemberships, leagues } from "./league";
 import { players } from "./tournament";
 import { fantasyRounds } from "./schedule";
-import { waiverAvailabilityStatus, waiverClaimStatus, waiverPriorityPhase } from "./enums";
+import { waiverAvailabilityStatus, waiverClaimStatus, waiverPriorityPhase, dropReasonType } from "./enums";
 
 export const waiverPlayerStatus = pgTable(
   "waiver_player_status",
@@ -25,6 +25,11 @@ export const waiverPlayerStatus = pgTable(
     eligibleAt: timestamp("eligible_at", { withTimezone: true }),
     currentFantasyRoundId: uuid("current_fantasy_round_id").references(
       () => fantasyRounds.id
+    ),
+    dropReason: dropReasonType("drop_reason"),
+    droppedByManagerId: uuid("dropped_by_manager_id").references(
+      () => leagueMemberships.id,
+      { onDelete: "set null" }
     ),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()

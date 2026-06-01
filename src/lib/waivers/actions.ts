@@ -7,9 +7,9 @@ import {
   waiverPriority,
   leagues,
   leagueMemberships,
-  players,
 } from "@/db/schema";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
+import { applyOwnershipTransition } from "./ownership";
 
 // ── Shared helpers ─────────────────────────────────────────────────────────────
 
@@ -83,7 +83,6 @@ export async function submitWaiverClaim(
   await requireActiveLeague(leagueId);
   await requireRosterMembership(leagueId, managerId);
 
-  // Player must be on waivers
   const [playerStatus] = await db
     .select({ status: waiverPlayerStatus.status })
     .from(waiverPlayerStatus)
@@ -101,7 +100,6 @@ export async function submitWaiverClaim(
     );
   }
 
-  // Conditional drop: must be on manager's roster
   if (dropPlayerId) {
     const [dropRoster] = await db
       .select({ id: rosters.id })
@@ -121,7 +119,6 @@ export async function submitWaiverClaim(
     }
   }
 
-  // Get manager's current waiver priority for audit
   const [priorityRow] = await getManagerPriority(leagueId, managerId, phase);
   if (!priorityRow) {
     throw new Error(
@@ -172,7 +169,6 @@ export async function dropPlayer(args: DropPlayerArgs): Promise<void> {
   await requireRosterMembership(leagueId, managerId);
 
   await db.transaction(async (tx) => {
-    // Verify player is on this manager's roster
     const [rosterRow] = await tx
       .select({ id: rosters.id })
       .from(rosters)
@@ -191,37 +187,21 @@ export async function dropPlayer(args: DropPlayerArgs): Promise<void> {
       );
     }
 
-    // Remove from roster
-    await tx
-      .delete(rosters)
-      .where(
-        and(
-          eq(rosters.leagueId, leagueId),
-          eq(rosters.managerId, managerId),
-          eq(rosters.playerId, playerId)
-        )
-      );
-
     const now = new Date();
-    const eligibleAt = new Date(now.getTime() + 24 * 60 * 60 * 1000); // 24h minimum
+    const eligibleAt = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 
-    // Upsert waiver status: player goes on waivers with 24h window
-    await tx
-      .insert(waiverPlayerStatus)
-      .values({
-        leagueId,
-        playerId,
-        status: "on_waivers",
+    await applyOwnershipTransition(
+      tx,
+      leagueId,
+      playerId,
+      {
+        to: "on_waivers",
+        dropReason: "manager_drop",
+        droppedByManagerId: managerId,
         eligibleAt,
-      })
-      .onConflictDoUpdate({
-        target: [waiverPlayerStatus.leagueId, waiverPlayerStatus.playerId],
-        set: {
-          status: "on_waivers",
-          eligibleAt,
-          updatedAt: now,
-        },
-      });
+      },
+      now
+    );
   });
 }
 
@@ -231,7 +211,7 @@ export type PickupFreeAgentArgs = {
   leagueId: string;
   managerId: string;
   playerId: string;
-  dropPlayerId?: string; // required if roster is full
+  dropPlayerId?: string;
 };
 
 export async function pickupFreeAgent(
@@ -243,7 +223,6 @@ export async function pickupFreeAgent(
   await requireRosterMembership(leagueId, managerId);
 
   await db.transaction(async (tx) => {
-    // Player must be a free agent
     const [status] = await tx
       .select({ status: waiverPlayerStatus.status })
       .from(waiverPlayerStatus)
@@ -261,7 +240,6 @@ export async function pickupFreeAgent(
       );
     }
 
-    // Roster size check
     const rosterRows = await tx
       .select({ id: rosters.id })
       .from(rosters)
@@ -269,15 +247,14 @@ export async function pickupFreeAgent(
         and(eq(rosters.leagueId, leagueId), eq(rosters.managerId, managerId))
       );
 
-    const rosterSize = rosterRows.length;
-
-    if (rosterSize >= 14 && !dropPlayerId) {
+    if (rosterRows.length >= 14 && !dropPlayerId) {
       throw new Error(
         `Roster is full (14). Specify a drop player for FCFS pickup.`
       );
     }
 
-    // Conditional drop first
+    const now = new Date();
+
     if (dropPlayerId) {
       const [dropRow] = await tx
         .select({ id: rosters.id })
@@ -297,60 +274,26 @@ export async function pickupFreeAgent(
         );
       }
 
-      await tx
-        .delete(rosters)
-        .where(
-          and(
-            eq(rosters.leagueId, leagueId),
-            eq(rosters.managerId, managerId),
-            eq(rosters.playerId, dropPlayerId)
-          )
-        );
-
-      // Put dropped player on waivers (24h window)
-      const now = new Date();
-      await tx
-        .insert(waiverPlayerStatus)
-        .values({
-          leagueId,
-          playerId: dropPlayerId,
-          status: "on_waivers",
+      await applyOwnershipTransition(
+        tx,
+        leagueId,
+        dropPlayerId,
+        {
+          to: "on_waivers",
+          dropReason: "manager_drop",
+          droppedByManagerId: managerId,
           eligibleAt: new Date(now.getTime() + 24 * 60 * 60 * 1000),
-        })
-        .onConflictDoUpdate({
-          target: [waiverPlayerStatus.leagueId, waiverPlayerStatus.playerId],
-          set: {
-            status: "on_waivers",
-            eligibleAt: new Date(now.getTime() + 24 * 60 * 60 * 1000),
-            updatedAt: now,
-          },
-        });
+        },
+        now
+      );
     }
 
-    // Add to roster
-    await tx.insert(rosters).values({
+    await applyOwnershipTransition(
+      tx,
       leagueId,
-      managerId,
       playerId,
-      acquiredVia: "free_agent",
-    });
-
-    // Update player status to rostered
-    const now = new Date();
-    await tx
-      .insert(waiverPlayerStatus)
-      .values({
-        leagueId,
-        playerId,
-        status: "rostered",
-      })
-      .onConflictDoUpdate({
-        target: [waiverPlayerStatus.leagueId, waiverPlayerStatus.playerId],
-        set: {
-          status: "rostered",
-          eligibleAt: null,
-          updatedAt: now,
-        },
-      });
+      { to: "rostered", managerId, acquiredVia: "free_agent" },
+      now
+    );
   });
 }

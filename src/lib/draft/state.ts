@@ -81,7 +81,7 @@ export async function getDraftState(
     if (!league) throw new Error(`League ${leagueId} not found`);
 
     const leagueSize = leagueSizeFromFormat(league.format);
-    const position = resolveDraftPosition(draft.currentPickNumber, leagueSize);
+    const position = resolveDraftPosition(draft.currentPickNumber, leagueSize, 14);
 
     const [orderRow] = await db
       .select({ managerId: draftOrder.managerId })
