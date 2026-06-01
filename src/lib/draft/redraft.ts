@@ -268,6 +268,9 @@ export async function startRedraft(leagueId: string): Promise<{ draftId: string 
       return;
     }
 
+    // UI-phase revisit: pick-1 clock starts at row creation, not at a "go live" signal.
+    // For a live UI, startRedraft should create the draft with status='pending' and a
+    // separate "begin picking" action should set status='active' + currentPickDeadline.
     const deadline = new Date(now.getTime() + REDRAFT_PICK_CLOCK_SECONDS * 1000);
 
     const [inserted] = await tx
