@@ -50,12 +50,19 @@
       "when": 1780189686087,
       "tag": "0006_add_waiver_claim_rank",
       "breakpoints": true
-    }
-    ,{
+    },
+    {
       "idx": 7,
       "version": "7",
       "when": 1780276086087,
       "tag": "0007_redraft_and_mass_release",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1780328946607,
+      "tag": "0008_cute_sabra",
       "breakpoints": true
     }
   ]

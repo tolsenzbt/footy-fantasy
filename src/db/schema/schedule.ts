@@ -64,6 +64,7 @@ export const groupStandings = pgTable(
     })
       .notNull()
       .default("0"),
+    randomTiebreak: integer("random_tiebreak"),
     computedAt: timestamp("computed_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
