@@ -265,7 +265,18 @@ No live free agency during matches. All player movement is committed before kick
 
 ### Waiver priority
 - **Group stage:** Initial order is reverse of initial draft order. Successful claims send claimant to bottom; others shift up. Failed claims do not affect priority. Priority persists through entire group stage.
-- **Knockouts:** Priority resets after the redraft. New order = reverse of redraft order. Eliminated managers are removed.
+- **Knockouts:** Priority resets immediately after the redraft completes. New order = **reverse of the start-of-redraft by-need order** (§7), over participating (advancing) managers only; eliminated managers are removed. Managers who opted out ("done") during the redraft retain their priority slot — opting out does not reorder priority.
+
+### Group-stage → knockout transition sequence
+
+The transition is a fixed ordering with timing dependencies. Each step depends on the prior:
+
+1. **Mass-release batch** — runs in the final group-stage waiver cron, after normal claim resolution (§ mass-release above). Produces the per-manager auto-dropped count.
+2. **Redraft** — admin action (`group_stage→redrafting`). By-need order computed from step 1. Pool frozen at start. Runs snake, picks consume the pool live.
+3. **Redraft completes** — admin action (`redrafting→knockouts`). Completion timestamp recorded.
+4. **Priority reset** — fires immediately on completion (reverse of start-of-redraft by-need order, eliminated removed). Must precede step 5.
+5. **First knockout waiver processing event** — fires at redraft completion **+1 hour**. This is a **full waiver processing pass**, not a straight clear: all claims over every waivered player are resolved using the reset priority from step 4; any player unclaimed after resolution becomes a free agent (FCFS). This replaces the earlier "unselected players clear waivers 1h after redraft" framing — there is no separate clear mechanism; the +1h event is simply the first knockout processing event, scheduled early.
+6. **Subsequent knockout waiver events** — normal 5am ET cron, one per real-world knockout round.
 
 ### Multiple claims per event
 A manager may win more than one player in a single processing event. After a successful claim drops the manager to the bottom of priority, they remain eligible for further awards on subsequent resolver passes as long as they have open roster spots and remaining ranked claims. Players continue to fall to a manager at lowest priority if no higher-priority manager claims them.
@@ -299,10 +310,10 @@ Waiver claims can include a "drop-if-successful" designation. A conditional drop
 All undrafted players sit on waivers for 24 hours after the draft concludes, then become free agents.
 
 ### Mass release at end of group stage
-- All players from non-advancing nations on **advancing managers' rosters** are auto-dropped at conclusion of `group_md3`
-- These players sit on waivers through the redraft
-- Players selected in the redraft come off waivers
-- Unselected players clear waivers 1 hour after redraft completes
+- All players from non-advancing nations on **advancing managers' rosters** are auto-dropped at conclusion of `group_md3`. This auto-drop runs as a **second phase of the final group-stage waiver cron** (the 5am ET event after `group_md3`'s last game), after normal claim resolution completes — NOT on the admin `group_stage→redrafting` transition. The admin transition is a pure read of already-settled state. The auto-dropped count per manager is the input to the redraft's by-need ordering (§7), so it must be finalized before the redraft starts.
+- These players sit on waivers through the redraft and form the selectable redraft pool (§7), alongside pre-existing free agents.
+- Players selected in the redraft come off waivers.
+- The redraft pool is **frozen at redraft start**. Players dropped during the redraft (full-roster drops) and any players manually dropped by managers whose 24h window overlaps the redraft go to waivers normally and are **NOT re-selectable within the same redraft** — this prevents drop-and-reclaim roster laundering. They are resolved at the first knockout waiver processing event (below), not during the redraft.
 
 Auto-drop applies only to advancing managers' rosters. Non-advancing (eliminated) managers' rosters are locked intact at end of group stage; their players (whether from advancing or eliminated nations) are not returned to the pool.
 
@@ -368,6 +379,8 @@ The following are determined at the group draw event:
 | `knockouts` | `complete` | Admin marks tournament complete (or auto, after final fantasy round) |
 
 Sub-phase progress (draft picks complete? group draw run? group stage matchdays played?) is derived from related tables (`drafts.status`, `schedule_slots`, `group_standings`, `fantasy_matchups`), not from `leagues.status`.
+
+Note: the `group_stage→redrafting` transition does **not** trigger the mass-release batch. Mass-release runs earlier, in the final group-stage waiver cron (§8). By the time the admin starts the redraft, auto-drops are already settled and the by-need count is queryable. The transition is a pure read of that state.
 
 ---
 
