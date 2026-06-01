@@ -1,110 +1,38 @@
 import "server-only";
 import { db } from "@/db";
-import {
-  fantasyMatchups,
-  fantasyRounds,
-  groupStandings,
-  scheduleSlots,
-} from "@/db/schema";
+import { fantasyMatchups, fantasyRounds } from "@/db/schema";
 import { players, nations, realFixtures } from "@/db/schema";
 import { playerMatchStats, playerMatchScores } from "@/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
 import { getLineup, type LineupReadResult } from "@/lib/lineup/read";
-import { scoreStartingXI, type StartingXIInput } from "@/lib/scoring/lineup";
-import { scorePlayer, type PlayerMatchStats, type FantasyPosition } from "@/lib/scoring/engine";
+import { applyCaptainMultiplier } from "@/lib/scoring/engine";
 
-function statsFromRow(row: {
-  minutesPlayed: number;
-  goals: number;
-  assists: number;
-  goalsConceded: number;
-  saves: number;
-  penaltySaved: boolean;
-  penaltyMissed: boolean;
-  yellowCards: number;
-  redCard: boolean;
-  ownGoals: number;
-}): PlayerMatchStats {
-  return {
-    minutesPlayed: row.minutesPlayed,
-    goals: row.goals,
-    assists: row.assists,
-    concededWhileOnPitch: row.goalsConceded,
-    saves: row.saves,
-    penaltiesSaved: row.penaltySaved ? 1 : 0,
-    penaltiesMissed: row.penaltyMissed ? 1 : 0,
-    yellowCards: row.yellowCards,
-    redCards: row.redCard ? 1 : 0,
-    ownGoals: row.ownGoals,
-  };
-}
-
-function zeroStats(): PlayerMatchStats {
-  return {
-    minutesPlayed: 0,
-    goals: 0,
-    assists: 0,
-    concededWhileOnPitch: 0,
-    saves: 0,
-    penaltiesSaved: 0,
-    penaltiesMissed: 0,
-    yellowCards: 0,
-    redCards: 0,
-    ownGoals: 0,
-  };
-}
-
-function computeManagerScore(
-  lineup: LineupReadResult,
-  playerToFixtureId: Map<string, string>,
-  statsMap: Map<string, PlayerMatchStats>,
-  scoresMap: Map<string, { points: string; overridePoints: string | null }>,
+// Compute a manager's round total from materialized player_match_scores.
+// base = overridePoints ?? points from player_match_scores (missing row → 0).
+// Captain/VC multiplier applied on top of those bases, matching scoreStartingXI rules:
+//   - captainPlayed = captainMinutesPlayed > 0 (from player_match_stats)
+//   - vcPromotes = !captainPlayed && vcPlayerId !== null
+//   - the one recipient (captain or promoting VC) gets 2x; no-VC, no-play → 1x all
+function computeManagerScoreFromBases(
+  starters: Array<{ playerId: string }>,
+  basesMap: Map<string, number>,       // playerId → effective base (override ?? points ?? 0)
+  captainPlayerId: string | null,
+  vcPlayerId: string | null,
+  captainMinutesPlayed: number,        // 0 if no stats row or no captain set
 ): number {
-  const starters = lineup.slots.filter((s) => s.slotType === "starter");
-
-  if (lineup.captainPlayerId) {
-    const xiPlayers = starters.map((s) => ({
-      playerId: s.playerId,
-      position: s.fantasyPosition as FantasyPosition,
-      stats: statsMap.get(s.playerId) ?? zeroStats(),
-    }));
-
-    const input: StartingXIInput = {
-      players: xiPlayers,
-      captainId: lineup.captainPlayerId,
-      vcId: lineup.vcPlayerId ?? null,
-    };
-
-    const lineupScore = scoreStartingXI(input);
-
-    // Apply overrides: replace effectiveBasePoints and recompute
-    let total = 0;
-    for (const ps of lineupScore.players) {
-      const fixtureId = playerToFixtureId.get(ps.playerId);
-      const scoreRow = fixtureId ? scoresMap.get(`${ps.playerId}:${fixtureId}`) : undefined;
-      if (scoreRow?.overridePoints != null) {
-        const effectiveBase = parseFloat(scoreRow.overridePoints);
-        total += effectiveBase * ps.multiplier;
-      } else {
-        total += ps.finalPoints;
-      }
-    }
-    return total;
-  } else {
-    // No captain: sum scorePlayer for each starter, apply overrides without multiplier
-    let total = 0;
-    for (const s of starters) {
-      const stats = statsMap.get(s.playerId) ?? zeroStats();
-      const fixtureId = playerToFixtureId.get(s.playerId);
-      const scoreRow = fixtureId ? scoresMap.get(`${s.playerId}:${fixtureId}`) : undefined;
-      if (scoreRow?.overridePoints != null) {
-        total += parseFloat(scoreRow.overridePoints);
-      } else {
-        total += scorePlayer(stats, s.fantasyPosition as FantasyPosition);
-      }
-    }
-    return total;
+  if (!captainPlayerId) {
+    return starters.reduce((sum, s) => sum + (basesMap.get(s.playerId) ?? 0), 0);
   }
+
+  const captainPlayed = captainMinutesPlayed > 0;
+  const vcPromotes = !captainPlayed && vcPlayerId !== null;
+  const recipientId = vcPromotes ? vcPlayerId! : captainPlayerId;
+  const recipientBonus = captainPlayed || vcPromotes;
+
+  return starters.reduce((sum, { playerId }) => {
+    const base = basesMap.get(playerId) ?? 0;
+    return sum + applyCaptainMultiplier(base, recipientBonus && playerId === recipientId);
+  }, 0);
 }
 
 export async function resolveMatchups(
@@ -122,12 +50,10 @@ export async function resolveMatchups(
       ),
     );
 
-  // Filter out BYE rows
   const activeMatchups = matchups.filter((m) => m.awaySeedSource !== "BYE");
-
   if (activeMatchups.length === 0) return;
 
-  // 2. Get the round name
+  // 2. Get the round name (needed to match realFixtures.round)
   const [roundRow] = await db
     .select({ round: fantasyRounds.round })
     .from(fantasyRounds)
@@ -136,7 +62,7 @@ export async function resolveMatchups(
   if (!roundRow) return;
   const roundName = roundRow.round;
 
-  // 3. Collect all manager IDs (home + away, non-null)
+  // 3. Collect all manager IDs
   const managerIds = Array.from(
     new Set(
       activeMatchups.flatMap((m) =>
@@ -154,7 +80,7 @@ export async function resolveMatchups(
     lineupByManager.set(managerIds[i], lineupResults[i]);
   }
 
-  // 5. Collect all player IDs from all starters
+  // 5. Collect all starter player IDs across all lineups
   const allPlayerIds = Array.from(
     new Set(
       [...lineupByManager.values()]
@@ -166,23 +92,18 @@ export async function resolveMatchups(
   );
 
   if (allPlayerIds.length === 0) {
-    // All managers have no lineup; write zero scores
     await db.transaction(async (tx) => {
       for (const matchup of activeMatchups) {
         await tx
           .update(fantasyMatchups)
-          .set({
-            homeScore: "0",
-            awayScore: "0",
-            winnerManagerId: null,
-          })
+          .set({ homeScore: "0", awayScore: "0", winnerManagerId: null })
           .where(eq(fantasyMatchups.id, matchup.id));
       }
     });
     return;
   }
 
-  // 6. Players → nations batch query
+  // 6. Players → nation IDs batch query
   const playerRows = await db
     .select({ id: players.id, nationId: players.nationId })
     .from(players)
@@ -195,44 +116,24 @@ export async function resolveMatchups(
     allNationIds.push(p.nationId);
   }
 
-  // 7. Nations → realFixtures for this round
-  const fixtureRows = await db
-    .select({
-      fixtureId: realFixtures.id,
-      homeNationId: realFixtures.homeNationId,
-      awayNationId: realFixtures.awayNationId,
-    })
-    .from(realFixtures)
-    .where(
-      and(
-        eq(realFixtures.round, roundName),
-        inArray(realFixtures.homeNationId, allNationIds.length > 0 ? allNationIds : [""]),
-      ),
-    );
+  // 7. Nations → realFixtures for this round (home side, then away side)
+  const [fixtureRowsHome, fixtureRowsAway] = await Promise.all([
+    db
+      .select({ fixtureId: realFixtures.id, homeNationId: realFixtures.homeNationId, awayNationId: realFixtures.awayNationId })
+      .from(realFixtures)
+      .where(and(eq(realFixtures.round, roundName), inArray(realFixtures.homeNationId, allNationIds.length > 0 ? allNationIds : [""]))),
+    db
+      .select({ fixtureId: realFixtures.id, homeNationId: realFixtures.homeNationId, awayNationId: realFixtures.awayNationId })
+      .from(realFixtures)
+      .where(and(eq(realFixtures.round, roundName), inArray(realFixtures.awayNationId, allNationIds.length > 0 ? allNationIds : [""]))),
+  ]);
 
-  // Also query by awayNationId
-  const fixtureRowsAway = await db
-    .select({
-      fixtureId: realFixtures.id,
-      homeNationId: realFixtures.homeNationId,
-      awayNationId: realFixtures.awayNationId,
-    })
-    .from(realFixtures)
-    .where(
-      and(
-        eq(realFixtures.round, roundName),
-        inArray(realFixtures.awayNationId, allNationIds.length > 0 ? allNationIds : [""]),
-      ),
-    );
-
-  // Build nationId → fixtureId map
   const fixtureIdByNation = new Map<string, string>();
-  for (const row of [...fixtureRows, ...fixtureRowsAway]) {
+  for (const row of [...fixtureRowsHome, ...fixtureRowsAway]) {
     fixtureIdByNation.set(row.homeNationId, row.fixtureId);
     fixtureIdByNation.set(row.awayNationId, row.fixtureId);
   }
 
-  // Build playerId → fixtureId map
   const playerToFixtureId = new Map<string, string>();
   for (const playerId of allPlayerIds) {
     const nationId = nationIdByPlayer.get(playerId);
@@ -242,25 +143,29 @@ export async function resolveMatchups(
     }
   }
 
-  // 8. Collect all fixture IDs used
   const allFixtureIds = Array.from(new Set(playerToFixtureId.values()));
 
-  // 9. Batch fetch stats and scores
-  const [statsRows, scoresRows] = await Promise.all([
+  // 8. Collect captain player IDs (for minutesPlayed — VC-promotion check only)
+  const allCaptainIds = Array.from(
+    new Set(
+      [...lineupByManager.values()]
+        .filter(Boolean)
+        .map((lu) => lu!.captainPlayerId)
+        .filter(Boolean) as string[],
+    ),
+  );
+
+  // 9. Fetch player_match_scores (base scores) and player_match_stats (captain minutesPlayed) in parallel.
+  // Both queries always fire when fixtures exist so mock call-count is stable regardless of captain presence.
+  const [scoresRows, captainStatsRows] = await Promise.all([
     allFixtureIds.length > 0
       ? db
-          .select()
-          .from(playerMatchStats)
-          .where(
-            and(
-              inArray(playerMatchStats.fixtureId, allFixtureIds),
-              inArray(playerMatchStats.playerId, allPlayerIds),
-            ),
-          )
-      : Promise.resolve([]),
-    allFixtureIds.length > 0
-      ? db
-          .select()
+          .select({
+            playerId: playerMatchScores.playerId,
+            fixtureId: playerMatchScores.fixtureId,
+            points: playerMatchScores.points,
+            overridePoints: playerMatchScores.overridePoints,
+          })
           .from(playerMatchScores)
           .where(
             and(
@@ -269,66 +174,79 @@ export async function resolveMatchups(
             ),
           )
       : Promise.resolve([]),
+    allFixtureIds.length > 0
+      ? db
+          .select({
+            playerId: playerMatchStats.playerId,
+            fixtureId: playerMatchStats.fixtureId,
+            minutesPlayed: playerMatchStats.minutesPlayed,
+          })
+          .from(playerMatchStats)
+          .where(
+            and(
+              inArray(playerMatchStats.fixtureId, allFixtureIds),
+              // [""] is a no-match sentinel when there are no captains (avoids inArray([]) error)
+              inArray(playerMatchStats.playerId, allCaptainIds.length > 0 ? allCaptainIds : [""]),
+            ),
+          )
+      : Promise.resolve([]),
   ]);
 
-  // Build lookup maps keyed by "playerId:fixtureId"
-  const statsMap = new Map<string, PlayerMatchStats>();
-  for (const row of statsRows) {
-    statsMap.set(`${row.playerId}:${row.fixtureId}`, statsFromRow(row));
-  }
-
-  const scoresMap = new Map<string, { points: string; overridePoints: string | null }>();
+  // 10. Build per-player base-score map: playerId → effective base (overridePoints ?? points)
+  const basesMap = new Map<string, number>();
   for (const row of scoresRows) {
-    scoresMap.set(`${row.playerId}:${row.fixtureId}`, {
-      points: row.points,
-      overridePoints: row.overridePoints ?? null,
-    });
-  }
-
-  // Build per-player stats map keyed by playerId (using their fixture)
-  const playerStatsMap = new Map<string, PlayerMatchStats>();
-  for (const playerId of allPlayerIds) {
-    const fixtureId = playerToFixtureId.get(playerId);
-    if (fixtureId) {
-      playerStatsMap.set(playerId, statsMap.get(`${playerId}:${fixtureId}`) ?? zeroStats());
-    } else {
-      playerStatsMap.set(playerId, zeroStats());
+    const expectedFixture = playerToFixtureId.get(row.playerId);
+    if (expectedFixture === row.fixtureId) {
+      const base =
+        row.overridePoints !== null
+          ? parseFloat(row.overridePoints)
+          : parseFloat(row.points);
+      basesMap.set(row.playerId, base);
     }
   }
 
-  // Process matchups and write results in a transaction
+  // 11. Build captain minutesPlayed map: captainPlayerId → minutesPlayed
+  const captainMinutesMap = new Map<string, number>();
+  for (const row of captainStatsRows) {
+    const expectedFixture = playerToFixtureId.get(row.playerId);
+    if (expectedFixture === row.fixtureId) {
+      captainMinutesMap.set(row.playerId, row.minutesPlayed);
+    }
+  }
+
+  // 12. Score each matchup and write results
   await db.transaction(async (tx) => {
     for (const matchup of activeMatchups) {
-      const homeLineup = matchup.homeManagerId
-        ? lineupByManager.get(matchup.homeManagerId) ?? null
-        : null;
-      const awayLineup = matchup.awayManagerId
-        ? lineupByManager.get(matchup.awayManagerId) ?? null
-        : null;
-
-      const homeScore = homeLineup
-        ? computeManagerScore(homeLineup, playerToFixtureId, playerStatsMap, scoresMap)
-        : 0;
-      const awayScore = awayLineup
-        ? computeManagerScore(awayLineup, playerToFixtureId, playerStatsMap, scoresMap)
-        : 0;
+      const homeScore = scoreLineup(matchup.homeManagerId, lineupByManager, basesMap, captainMinutesMap);
+      const awayScore = scoreLineup(matchup.awayManagerId, lineupByManager, basesMap, captainMinutesMap);
 
       let winnerManagerId: string | null = null;
-      if (homeScore > awayScore) {
-        winnerManagerId = matchup.homeManagerId ?? null;
-      } else if (awayScore > homeScore) {
-        winnerManagerId = matchup.awayManagerId ?? null;
-      }
-      // equal → null (draw)
+      if (homeScore > awayScore) winnerManagerId = matchup.homeManagerId ?? null;
+      else if (awayScore > homeScore) winnerManagerId = matchup.awayManagerId ?? null;
 
       await tx
         .update(fantasyMatchups)
-        .set({
-          homeScore: homeScore.toFixed(2),
-          awayScore: awayScore.toFixed(2),
-          winnerManagerId,
-        })
+        .set({ homeScore: homeScore.toFixed(2), awayScore: awayScore.toFixed(2), winnerManagerId })
         .where(eq(fantasyMatchups.id, matchup.id));
     }
   });
+}
+
+function scoreLineup(
+  managerId: string | null,
+  lineupByManager: Map<string, LineupReadResult | null>,
+  basesMap: Map<string, number>,
+  captainMinutesMap: Map<string, number>,
+): number {
+  if (!managerId) return 0;
+  const lineup = lineupByManager.get(managerId);
+  if (!lineup) return 0;
+  const starters = lineup.slots.filter((s) => s.slotType === "starter");
+  return computeManagerScoreFromBases(
+    starters,
+    basesMap,
+    lineup.captainPlayerId,
+    lineup.vcPlayerId ?? null,
+    captainMinutesMap.get(lineup.captainPlayerId ?? "") ?? 0,
+  );
 }
