@@ -247,14 +247,15 @@ Held the morning of the real-world Round of 32.
   - 16-team format: 8 advancing managers
   - 12-team format: 8 advancing managers
   - 8-team format: 6 advancing managers
-- **Order:** By need (count of auto-dropped eliminated-nation players, descending), tiebreaker = group-stage points (descending)
+- **Order (by-need):** count of auto-dropped eliminated-nation players (descending); tiebreaker 1 = group-stage points (descending); tiebreaker 2 = highest single-matchday score (descending). Computed once at redraft start and fixed for the duration (opt-outs and skips do not reorder it). The auto-dropped count per manager derives from mass-release drops (`waiver_player_status.drop_reason = 'mass_release'`, grouped by `dropped_by_manager_id`).
 - **Format:** Snake
 - **Rounds:** 10 maximum, regardless of league size
-- **Pick clock:** 30 seconds per pick (rapid-fire)
-- **Pass option:** Managers can opt out of the redraft at any time, skipping all remaining picks
-- **Full-roster picks:** If a manager is at 14 players when picking, they must drop a player on the same turn
-- **Available pool:** All non-rostered players (free agents + waivered eliminated-nation players)
-- **Exception:** Eliminated managers' rosters are locked; their players are NOT available
+- **Pick clock:** 60 seconds per pick (rapid-fire)
+- **Pick action:** Within the 60s window the manager selects a player to add, then (only if at 14 players) selects a player to drop. Not dropping is valid only when the manager has an open roster spot.
+- **Timeout (auto-pick):** If the clock expires AND the manager has an open roster spot, the system auto-picks the **best available** player — filtered to positions that are legal to add given the manager's current roster (§5 maxes), then highest group-stage points among that filtered pool. Auto-pick never drops a player to make room. If the manager has no open spot at timeout, the pick is **skipped** (no auto-drop). A timeout (auto-pick or skip) is NOT an opt-out — the manager remains active for later rounds.
+- **Opt-out ("done"):** A manager may permanently opt out at any time via an explicit "done" action (UI: checkbox + "Are you sure? You will no longer be able to make picks" confirmation). Once confirmed they are removed from all future pick generation but retain read/watch access. This is the only terminal exit. The redraft ends when every participant has opted out or the 10-round cap is reached.
+- **Full-roster picks:** If a manager is at 14 players when picking, they must drop a player on the same turn (see Pick action). The dropped player goes to waivers and is not re-selectable in this redraft (§8, frozen pool).
+- **Available pool:** Frozen at redraft start. Includes pre-existing free agents and players on waivers because their nation was eliminated / mass-released. Excludes players on waivers because a manager dropped them (`drop_reason = 'manager_drop'`). Eliminated managers' rosters are locked and never available.
 
 ---
 
