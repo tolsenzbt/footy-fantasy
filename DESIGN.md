@@ -4,7 +4,7 @@
 
 **Status:** In active implementation. Backend/logic complete through the standings + bracket read-model phase (see §16). Stats ingestion and all UI remain. All format and architectural decisions in this document are locked unless explicitly revisited.
 
-**Last updated:** June 1, 2026 (v4 — reconciled to built state: schema/auth/draft/group-draw/lineup/scoring/waivers/redraft/standings+bracket complete; recorded multi-manager H2H tiebreaker resolution, 12-team cross-group-counts rule, and random_tiebreak storage; §16 rewritten to reflect remaining phases)
+**Last updated:** June 2, 2026 (v5 — stats ingestion + live scoring phase designed: §6 concededWhileOnPitch derivation + stats storage model, §10 ingestion sweep / GitHub Actions trigger / ROUND_SETTLE_HOURS / live provisional scoring / cross-cron gating, §11 cron split + Next.js 16 correction, §16 updated for migration 0009)
 
 ---
 
@@ -259,6 +259,50 @@ engine once per player and writing the result to `player_match_scores.points`.
 Lineup-level assembly (captain/VC multiplier, starting-XI summation) happens
 downstream at read/resolve time from stored base points — never from raw stats.
 
+### Deriving `concededWhileOnPitch` from API-Football events
+
+`conceded_while_on_pitch` is computed by the ingestion layer from two API-Football
+endpoints per fixture: `/fixtures/events` (goals, substitutions, cards with minutes)
+and `/fixtures/players` (per-player minutes and starter/sub flag). It is NOT provided
+directly by the API. The algorithm runs identically on a finished match or a match in
+progress (partial events) — mid-match, a player's on-pitch interval may simply still be
+open.
+
+**Per-player on-pitch interval `[onMin, offMin)`:**
+- `onMin` = 0 if the player started (`players[].statistics[0].games.substitute === false`),
+  else the minute they entered (the `subst` event where their player ID is the `assist`).
+- `offMin` = the earliest of: the minute they came off (the `subst` event where their
+  player ID is the `player`), a red-card minute for them, or +∞ (played to the whistle /
+  still on mid-match).
+
+  API-Football substitution convention: in a `subst` event, `player` is coming OFF and
+  `assist` is coming ON.
+
+**Effective goal minute:** `time.elapsed + (time.extra ?? 0)`.
+
+**Conceding-team rule (uniform across goal types):** for any `type === "Goal"` event, the
+conceding team is the team that is NOT `event.team.id`.
+- Normal / Penalty: `event.team.id` is the scorer's team → the other team concedes.
+- Own Goal (`detail === "Own Goal"`): API reports `event.team.id` as the *beneficiary* and
+  `event.player.id` as the scorer (on the conceding team). Since `event.team.id` is the
+  beneficiary, "not `event.team.id`" is still the conceding team — same rule, no special
+  case. (Confirmed against 2022 fixture 855767: Aguerd, a Morocco player, OG credited to
+  Canada; `event.team.id` = Canada, conceding team = Morocco.)
+
+**VAR-cancelled goals:** `type === "Var"` events (e.g. `"Goal cancelled"`) are not goals
+and never count. Only `type === "Goal"` counts.
+
+**Computation:** for each player, `concededWhileOnPitch` = count of Goal events whose
+conceding team is the player's nation AND whose effective minute G satisfies
+`onMin <= G < offMin`.
+
+**Validation guard:** the ingestion layer cross-checks derived on-pitch duration against
+the API's reported `games.minutes`; a discrepancy beyond a few minutes (stoppage slack) is
+logged as a warning, usually indicating a missed substitution event.
+
+The own-goal scoring penalty (−2 to the scorer) is a separate stat (`own_goals`, keyed off
+`event.player.id` + `detail === "Own Goal"`) and is unrelated to the conceding-team rule.
+
 ---
 
 ## 7. Drafts
@@ -448,18 +492,90 @@ The `rosters` table independently encodes roster membership. These two are dual 
 
 The UI displays each player's nation status as either the next fixture (opponent + kickoff time) when active, or "Eliminated" when not.
 
+### Stats ingestion & live scoring
+
+The stats ingestion job is the writer that populates `player_match_scores.points` — the
+authoritative per-player base that matchup resolution, standings, and the bracket all read.
+It is a single **stateless, idempotent catch-up sweep**: each run reconciles the DB against
+API-Football for any fixture in a polling window, recomputes fantasy scores from current
+stats, and finalizes rounds that have settled. It tracks no notion of "which matchday is
+today" — everything derives from fixture state, so a missed or delayed run is harmless (the
+next run catches up).
+
+**Trigger.** Driven by an external scheduler — **GitHub Actions** on a `schedule` cron
+(~every 5 min during the tournament) plus `workflow_dispatch` for manual runs — because the
+Vercel Hobby tier caps crons at once-per-day. The route is authenticated
+(`Authorization: Bearer ${CRON_SECRET}`), so the trigger is swappable (GitHub Actions, an
+uptime pinger, or the one spare Hobby cron as a daily fallback). The sweep is idempotent, so
+double-triggering is harmless.
+
+**Settle constant.** `ROUND_SETTLE_HOURS = 1` (named, tunable) governs both poll cooldown
+and resolve settle: a fixture is polled while live or until it has been finalized for
+`ROUND_SETTLE_HOURS`; a round is finalized once all its fixtures have been finalized for at
+least `ROUND_SETTLE_HOURS`. Semantics: one hour after a match finalizes, the stats present
+at that moment become permanent. A correction arriving later than an hour does not
+auto-update standings — it is an admin re-trigger (§13).
+
+**Per-tick behavior:**
+1. *Scope check (no API calls):* find fixtures that are live OR finalized within
+   `ROUND_SETTLE_HOURS` (using `real_fixtures.finalized_at`), and any round whose fixtures
+   are all finalized ≥ `ROUND_SETTLE_HOURS` ago with `fantasy_rounds.stats_ingested_at`
+   null. If both empty, exit.
+2. *Poll + score (API calls; match-state-agnostic):* for each in-window fixture, fetch
+   events + players, derive per-player stats (including live `conceded_while_on_pitch`),
+   upsert `player_match_stats`, and recompute `player_match_scores.points` via the §6
+   `scorePlayer` engine (never overwriting a row that has `override_points` set). Raw
+   payloads stored in `raw_api_responses` (hashed) for audit / change detection. On the
+   boundary tick where a fixture crosses `ROUND_SETTLE_HOURS`, this poll runs before the
+   resolve step so resolution sees the freshest stats.
+3. *Resolve settled rounds (no API calls; conditional):* for each settled, unresolved
+   round, in order: refresh nation status (`next_fixture_id` and `eliminated_at_round`),
+   run `resolveMatchups` → `computeStandings` → `resolveBracket`, set `stats_ingested_at`,
+   and schedule the `waiver_processing_events` row if the round's completion is
+   waiver-relevant (MD1, MD2, fantasy `qf`/`sf` → normal-claim event; MD3 → mass-release
+   event per the existing two-phase cron; no normal-claim window after MD3). `scheduledAt`
+   = 9am ET next morning (13:00 UTC during the tournament; UTC-only Vercel cron, EDT in
+   June–July).
+
+**Live scoring.** `getMatchupsForRound` computes manager totals on read from
+`player_match_scores`, so step-2 updates surface immediately as a live, provisional matchup
+total and winning/losing state. Authoritative matchup results, standings, and bracket
+advancement are written only by step 3, after the settle period. Live scores are provisional
+and may revise (VAR reversals, stat corrections); appearance points and clean sheets resolve
+only at/after full time. The UI labels live scores as provisional.
+
+**Nation elimination.** `eliminated_at_round` is set in step 3 — not from absence of a next
+fixture (a nation between knockout rounds also lacks one but is not eliminated). It is set to
+the fantasy-round identifier of the real round that eliminated the nation, via the seed's
+`mapRound` mapping (real R32 → `qf`, R16 → `sf`, QF → `final`; group-stage bottom-2 after MD3
+→ `group_md3`). Consumed by the live-view nation-status display and the waiver cron's
+free-agent logic, not by bracket advancement (which uses `group_standings` +
+`winner_manager_id`).
+
+**Cross-cron ordering.** The waiver cron (separate, daily, 9am ET — §8) is gated on
+`stats_ingested_at`: it processes a due `waiver_processing_events` row only if that round is
+resolved, deferring otherwise. The ~5-min sweep resolves rounds an hour after their last
+fixture, well before the 9am waiver run, so the gate is effectively always satisfied while
+remaining the correctness guarantee. This ensures waiver free-agent decisions never run on
+stale nation status.
+
+**API budget.** API-Football paid plan: 7,500 req/day. Polling is bounded to a ~3-hour
+window per fixture (≤2h live + 1h cooldown) at ~2 calls/poll. The busiest group-stage day
+stays well under ~25% of the daily ceiling; off-days cost ~zero (the scope check no-ops
+without API calls).
+
 ---
 
 ## 11. Architecture
 
 ### Tech stack
 - **Language:** TypeScript
-- **Frontend:** Next.js 15 (App Router, React) + Tailwind CSS + shadcn/ui
+- **Frontend:** Next.js 16 (App Router, React) + Tailwind CSS + shadcn/ui
 - **Backend:** Next.js API routes / server actions (no separate backend service)
 - **Database:** PostgreSQL via Supabase
 - **ORM:** Drizzle ORM (`drizzle-orm` + `drizzle-kit` for migrations)
 - **Auth:** Supabase Auth via `@supabase/ssr` (cookie-backed sessions, magic link only)
-- **Cron:** Vercel Cron (free tier)
+- **Cron:** Vercel Cron (Hobby tier, daily) for the waiver job; GitHub Actions (`schedule` ~every 5 min) for the stats-ingestion sweep (Hobby crons cap at once-per-day — see §10)
 - **Deployment:** Vercel (auto-deploy from GitHub)
 
 ### Hosting
@@ -468,7 +584,7 @@ The UI displays each player's nation status as either the next fixture (opponent
 | Frontend + API routes | Vercel (Hobby tier) | $0 |
 | Database | Supabase (free tier) | $0 |
 | Auth | Supabase (bundled) | $0 |
-| Cron jobs | Vercel Cron (free tier) | $0 |
+| Cron jobs | Vercel Cron (Hobby) + GitHub Actions | $0 |
 | Stats API | API-Football (paid plan) | paid |
 | Domain | Vercel subdomain (`footy-fantasy.vercel.app`) | $0 |
 
@@ -609,7 +725,7 @@ Before implementing any new feature:
 All of the above is backend/logic only. No UI exists yet — UI is deliberately the final phase so look-and-feel is built once, consistently.
 
 ### Remaining before MVP
-- **Stats ingestion job** (API-Football polling + fantasy point calculation). Computes `concededWhileOnPitch` from match events/subs and writes `player_match_scores.points` — the authoritative per-player base that matchup/standings/bracket all consume. Also sets nation `eliminated_at_round` (currently `recomputeAllNationStatus` only sets `next_fixture_id`). Calls `resolveMatchups` after ingesting each round. Includes the §8 waiver-extension rule (nation kicks off before processing → bump to next round). Resolver round columns already exist; this is resolver logic + a stubbed-kickoff test, no migration.
+- **Stats ingestion job** (API-Football polling + fantasy point calculation; designed §6/§10, this phase). A stateless idempotent catch-up sweep that derives `concededWhileOnPitch` from match events/subs (§6), writes `player_match_stats` and recomputes `player_match_scores.points` via the §6 engine, refreshes nation status incl. `eliminated_at_round`, and resolves settled rounds (`resolveMatchups` → `computeStandings` → `resolveBracket`) one hour after their last fixture finalizes (`ROUND_SETTLE_HOURS`). Triggered by GitHub Actions ~every 5 min; live provisional scoring surfaces on read between settle and finalization. Schedules waiver events on round completion and is gated against the waiver cron via `fantasy_rounds.stats_ingested_at` (§8, §10). Includes the §8 waiver-extension rule. **Requires migration 0009** — adds `player_match_stats.conceded_while_on_pitch`, `fantasy_rounds.stats_ingested_at`, `real_fixtures.finalized_at`. (Supersedes the earlier "no migration" note, which referred only to the deferred waiver-extension sliver.)
 - **UI** — all views: draft board, group draw, roster/lineup, waivers/FA, live matchup, group standings, knockout bracket.
 
 ### Known follow-ups (non-blocking)
