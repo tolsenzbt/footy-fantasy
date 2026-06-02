@@ -236,6 +236,29 @@ These resolve rule-level ambiguities the scoring table alone doesn't cover:
 
 The scoring engine is a pure function. It takes `minutesPlayed` and `concededWhileOnPitch` as numeric inputs and derives clean-sheet eligibility and the goals-conceded penalty itself — it does NOT accept a precomputed clean-sheet boolean or whole-match conceded total. Computing `concededWhileOnPitch` from match events and substitution data is the responsibility of the (separate, later) stats-ingestion layer.
 
+### Stats storage model
+
+`player_match_stats` is the raw per-player match record. It stores three
+conceded/clean-sheet-related fields with distinct roles:
+
+- `conceded_while_on_pitch` (integer) — derived by the ingestion layer from match
+  events + substitution timing. This is the ONLY one of the three the §6 scoring
+  engine consumes. Stored (not computed transiently) so every persisted
+  `player_match_scores.points` value is auditable against its exact input, and so an
+  admin can correct a bad stat directly in the DB (§13) and re-trigger recompute.
+- `goals_conceded` (integer) — raw whole-match team-conceded figure as reported by
+  the API. NOT a scoring input. Retained for display and debugging.
+- `clean_sheet` (boolean) — clean sheet as reported by the API. NOT a scoring input;
+  the engine derives clean-sheet eligibility itself from `minutesPlayed`,
+  `concededWhileOnPitch`, and red-card state. Retained so a derivation discrepancy
+  (API says clean sheet, engine derives otherwise) is visible at a glance when
+  debugging.
+
+The ingestion layer computes per-player base points by calling the pure `scorePlayer`
+engine once per player and writing the result to `player_match_scores.points`.
+Lineup-level assembly (captain/VC multiplier, starting-XI summation) happens
+downstream at read/resolve time from stored base points — never from raw stats.
+
 ---
 
 ## 7. Drafts
@@ -395,10 +418,10 @@ Note: the `group_stage→redrafting` transition does **not** trigger the mass-re
 ## 10. Stats & Data Source
 
 ### Primary source
-**API-Football** (api-football.com) free tier
-- 100 requests/day limit
-- 10 requests/minute rate limit
-- All endpoints available on free tier
+**API-Football** (api-football.com), paid plan (active)
+- 7,500 requests/day
+- 450 requests/minute rate limit
+- All endpoints available
 - Returns full match player stats in a single call per fixture
 
 ### Polling strategy
@@ -407,8 +430,7 @@ Note: the `group_stage→redrafting` transition does **not** trigger the mass-re
 - End-of-day reconciliation pull to catch any stat corrections
 
 ### Backup plan
-- Upgrade to API-Football Pro plan ($19/month) for the tournament duration if needed
-- ESPN scraping as a deeper fallback
+- ESPN scraping as a deeper fallback if API-Football has an outage
 
 ### Nation status
 Each nation tracks two derived fields:
@@ -447,10 +469,11 @@ The UI displays each player's nation status as either the next fixture (opponent
 | Database | Supabase (free tier) | $0 |
 | Auth | Supabase (bundled) | $0 |
 | Cron jobs | Vercel Cron (free tier) | $0 |
-| Stats API | API-Football (free tier) | $0 |
+| Stats API | API-Football (paid plan) | paid |
 | Domain | Vercel subdomain (`footy-fantasy.vercel.app`) | $0 |
 
-**Total: $0/month** with $19/month optional fallback.
+**Total: ~$0/month infrastructure** (Vercel + Supabase free tiers), plus the
+API-Football paid plan for stats.
 
 ### Source control
 - **GitHub** private repo, named `footy-fantasy`
