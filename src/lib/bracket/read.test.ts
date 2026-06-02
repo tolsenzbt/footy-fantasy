@@ -136,6 +136,25 @@ describe("getBracket", () => {
     expect(result.final).toHaveLength(0);
   });
 
+  it("sorts each round's matchups by matchIndex ascending", async () => {
+    mockDb.select
+      .mockReturnValueOnce(sel([{ id: QF_ROUND_ID, round: "qf" }]))
+      .mockReturnValueOnce(
+        sel([
+          { id: "qf-3", fantasyRoundId: QF_ROUND_ID, matchIndex: 3, homeManagerId: null, homeSeedSource: "1A", awayManagerId: null, awaySeedSource: "BYE", homeScore: null, awayScore: null, winnerManagerId: null },
+          { id: "qf-1", fantasyRoundId: QF_ROUND_ID, matchIndex: 1, homeManagerId: null, homeSeedSource: "2A", awayManagerId: null, awaySeedSource: "3B", homeScore: null, awayScore: null, winnerManagerId: null },
+          { id: "qf-4", fantasyRoundId: QF_ROUND_ID, matchIndex: 4, homeManagerId: null, homeSeedSource: "1B", awayManagerId: null, awaySeedSource: "BYE", homeScore: null, awayScore: null, winnerManagerId: null },
+          { id: "qf-2", fantasyRoundId: QF_ROUND_ID, matchIndex: 2, homeManagerId: null, homeSeedSource: "2B", awayManagerId: null, awaySeedSource: "3A", homeScore: null, awayScore: null, winnerManagerId: null },
+        ]),
+      );
+
+    const result = await getBracket(LEAGUE_ID);
+
+    expect(result.qf.map((m) => m.matchIndex)).toEqual([1, 2, 3, 4]);
+    expect(result.qf[0].matchupId).toBe("qf-1");
+    expect(result.qf[3].matchupId).toBe("qf-4");
+  });
+
   it("returns all three empty buckets when no rounds exist", async () => {
     mockDb.select.mockReturnValueOnce(sel([]));
 

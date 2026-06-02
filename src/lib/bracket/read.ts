@@ -82,5 +82,9 @@ export async function getBracket(leagueId: string): Promise<BracketData> {
     else if (round === "final") result.final.push(bracketMatchup);
   }
 
+  result.qf.sort((a, b) => a.matchIndex - b.matchIndex);
+  result.sf.sort((a, b) => a.matchIndex - b.matchIndex);
+  result.final.sort((a, b) => a.matchIndex - b.matchIndex);
+
   return result;
 }

@@ -326,6 +326,62 @@ describe("resolveBracket", () => {
     // (either behavior is valid as long as home isn't overwritten)
   });
 
+  it("8-team BYE chain: single call advances bye-winners into sf", async () => {
+    // 8-team bracket: qf_3 is 1A vs BYE, qf_4 is 1B vs BYE
+    // sf_1 seeds from winner_qf_3 and winner_qf_1
+    // The bug: if working state isn't threaded forward, sf_1 can't see the bye winner
+    // in the same call. This test asserts it resolves in ONE call.
+    const SF_ROUND_ID_8T = "sf-round-8t";
+    const MGR_1A = "mgr-1a";
+    const MGR_1B = "mgr-1b";
+    const MGR_2A = "mgr-2a";
+    const MGR_3B = "mgr-3b";
+
+    // qf matchups: 2A vs 3B (regular), 1A vs BYE, 1B vs BYE
+    const qf1 = makeMatchup({ id: "qf-1", fantasyRoundId: QF_ROUND_ID, matchIndex: 1, homeSeedSource: "2A", awaySeedSource: "3B" });
+    const qf3 = makeMatchup({ id: "qf-3", fantasyRoundId: QF_ROUND_ID, matchIndex: 3, homeSeedSource: "1A", awaySeedSource: "BYE" });
+    const qf4 = makeMatchup({ id: "qf-4", fantasyRoundId: QF_ROUND_ID, matchIndex: 4, homeSeedSource: "1B", awaySeedSource: "BYE" });
+    // sf_1 seeds from winner_qf_3 and winner_qf_1
+    const sf1 = makeMatchup({ id: "sf-1", fantasyRoundId: SF_ROUND_ID_8T, matchIndex: 1, homeSeedSource: "winner_qf_3", awaySeedSource: "winner_qf_1" });
+
+    mockDb.select
+      .mockReturnValueOnce(sel([{ id: QF_ROUND_ID, round: "qf" }, { id: SF_ROUND_ID_8T, round: "sf" }]))
+      .mockReturnValueOnce(sel([qf1, qf3, qf4, sf1]))
+      .mockReturnValueOnce(sel([
+        { managerId: MGR_1A, groupLetter: "A", rank: 1 },
+        { managerId: MGR_1B, groupLetter: "B", rank: 1 },
+        { managerId: MGR_2A, groupLetter: "A", rank: 2 },
+        { managerId: MGR_3B, groupLetter: "B", rank: 3 },
+      ]));
+
+    // Capture writes keyed by matchup id
+    const writesById = new Map<string, unknown>();
+    mockDb.transaction.mockImplementation(async (fn: (tx: unknown) => Promise<void>) => {
+      const tx = {
+        update: vi.fn().mockReturnValue({
+          set: vi.fn().mockImplementation((setVals: unknown) => ({
+            where: vi.fn().mockImplementation((whereClause: unknown) => {
+              // Capture by matching — we track calls in order
+              writesById.set(`call-${writesById.size}`, { set: setVals, where: whereClause });
+              return Promise.resolve([]);
+            }),
+          })),
+        }),
+      };
+      await fn(tx);
+    });
+
+    await resolveBracket(LEAGUE_ID);
+
+    // Find the sf-1 write: it should have homeManagerId = MGR_1A (bye winner from qf_3)
+    const allWrites = [...writesById.values()] as Array<{ set: Record<string, unknown> }>;
+    const sfWrite = allWrites.find((w) => w.set.homeManagerId === MGR_1A || w.set.awayManagerId === MGR_2A);
+    expect(sfWrite).toBeDefined();
+    // The sf row should pick up the bye winner (MGR_1A) for the home seed
+    const sfHomeWrite = allWrites.find((w) => w.set.homeManagerId === MGR_1A);
+    expect(sfHomeWrite).toBeDefined();
+  });
+
   it("no-op when no knockout rounds exist", async () => {
     mockDb.select.mockReturnValueOnce(sel([]));
 

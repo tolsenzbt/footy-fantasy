@@ -210,6 +210,31 @@ describe("getMatchupsForRound", () => {
     expect(result[0].winnerManagerId).toBe(HOME_MGR);
   });
 
+  it("finalized round: returns STORED total even when player_match_scores would compute differently", async () => {
+    // Stored scores: home=60.00, away=50.00 (written by resolveMatchups)
+    // Current player_match_scores: all players score 5 pts → computed home total = 55 (11×5, no cap)
+    // Reader must return 60 for home, 50 for away — NOT the 55 recomputed value
+    setupMocks({
+      isLive: false,  // sets homeScore="60.00", awayScore="50.00"
+      scoreRows: [PLAYER_GK, PLAYER_DEF, ...Array.from({ length: 9 }, (_, i) => `mid-${i}`)].map((pid) => ({
+        playerId: pid, fixtureId: FIXTURE_ID, points: "5", overridePoints: null,
+      })),
+      captainStatsRows: [],  // captain didn't play → no 2x; computed total = 11×5 = 55 ≠ 60
+    });
+    mockGetLineup
+      .mockResolvedValueOnce(makeLineup(HOME_MGR, null))  // no captain → 55 computed
+      .mockResolvedValueOnce(makeLineup(AWAY_MGR, null));
+
+    const result = await getMatchupsForRound(LEAGUE_ID, ROUND_ID);
+
+    // Stored total wins
+    expect(result[0].home!.total).toBe(60);
+    expect(result[0].away!.total).toBe(50);
+    // But per-player breakdown is still present (computed from current scores)
+    expect(result[0].home!.players).toHaveLength(11);
+    expect(result[0].isLive).toBe(false);
+  });
+
   it("BYE matchup: away = null, awaySeedSource = 'BYE'", async () => {
     const byeMatchup = makeMatchup({ awaySeedSource: "BYE" });
     const allPlayerIds = [PLAYER_GK, PLAYER_DEF, ...Array.from({ length: 9 }, (_, i) => `mid-${i}`)];

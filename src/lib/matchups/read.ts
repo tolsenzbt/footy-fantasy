@@ -244,8 +244,20 @@ export async function getMatchupsForRound(
       return { managerId, total, players: playerDetails };
     };
 
-    const home = matchup.homeManagerId ? scoreManager(matchup.homeManagerId) : null;
-    const away = !isByeRow && matchup.awayManagerId ? scoreManager(matchup.awayManagerId) : null;
+    let home = matchup.homeManagerId ? scoreManager(matchup.homeManagerId) : null;
+    let away = !isByeRow && matchup.awayManagerId ? scoreManager(matchup.awayManagerId) : null;
+
+    // For finalized rounds the stored score is authoritative for the headline total
+    // (a stat correction may land after resolution without a re-resolve). Per-player
+    // finals still come from the current player_match_scores breakdown above.
+    if (!isLive) {
+      if (home && matchup.homeScore !== null) {
+        home = { ...home, total: parseFloat(matchup.homeScore) };
+      }
+      if (away && matchup.awayScore !== null) {
+        away = { ...away, total: parseFloat(matchup.awayScore) };
+      }
+    }
 
     result.push({
       matchupId: matchup.id,

@@ -12,7 +12,6 @@ export type ParsedSeedSource =
 export function parseSeedSource(source: string): ParsedSeedSource {
   if (source === "BYE") return { type: "bye" };
 
-  // Matches like '1A', '2B', '3C' — one or more digits followed by one uppercase letter
   const standingMatch = source.match(/^(\d+)([A-Z])$/);
   if (standingMatch) {
     return {
@@ -22,7 +21,6 @@ export function parseSeedSource(source: string): ParsedSeedSource {
     };
   }
 
-  // Matches like 'winner_qf_1', 'winner_sf_2', 'winner_final_1'
   const winnerMatch = source.match(/^winner_(qf|sf|final)_(\d+)$/);
   if (winnerMatch) {
     return {
@@ -35,17 +33,18 @@ export function parseSeedSource(source: string): ParsedSeedSource {
   return { type: "unknown" };
 }
 
-const KNOCKOUT_ROUNDS = ["qf", "sf", "final"] as const;
+// Ordered: each round's seeds come from the prior round's winners.
+const ROUND_ORDER = ["qf", "sf", "final"] as const;
 
 export async function resolveBracket(leagueId: string): Promise<void> {
-  // 1. Load all knockout fantasy rounds for this league
+  // 1. Load knockout fantasy rounds
   const knockoutRoundRows = await db
     .select({ id: fantasyRounds.id, round: fantasyRounds.round })
     .from(fantasyRounds)
     .where(
       and(
         eq(fantasyRounds.leagueId, leagueId),
-        inArray(fantasyRounds.round, [...KNOCKOUT_ROUNDS]),
+        inArray(fantasyRounds.round, [...ROUND_ORDER]),
       ),
     );
 
@@ -55,7 +54,6 @@ export async function resolveBracket(leagueId: string): Promise<void> {
   }
 
   const knockoutRoundIds = knockoutRoundRows.map((r) => r.id);
-
   if (knockoutRoundIds.length === 0) return;
 
   // 2. Load all knockout matchups
@@ -69,7 +67,7 @@ export async function resolveBracket(leagueId: string): Promise<void> {
       ),
     );
 
-  // 3. Load group standings
+  // 3. Load group standings for seed-code resolution
   const standingRows = await db
     .select({
       managerId: groupStandings.managerId,
@@ -79,72 +77,88 @@ export async function resolveBracket(leagueId: string): Promise<void> {
     .from(groupStandings)
     .where(eq(groupStandings.leagueId, leagueId));
 
-  // Build lookup: rank + groupLetter → managerId
   const standingsByKey = new Map<string, string>();
   for (const row of standingRows) {
     standingsByKey.set(`${row.rank}${row.groupLetter}`, row.managerId);
   }
 
-  // Build lookup: roundName + matchIndex → matchup
-  const matchupByRoundAndIndex = new Map<string, (typeof allMatchups)[number]>();
+  // Working state: roundName_matchIndex → mutable copy of the matchup.
+  // Updated in-memory after each write so later rounds see resolved winners
+  // without needing a second DB call.
+  type WorkingMatchup = {
+    id: string;
+    homeManagerId: string | null;
+    awayManagerId: string | null;
+    winnerManagerId: string | null;
+    homeSeedSource: string | null;
+    awaySeedSource: string | null;
+  };
+  const workingByKey = new Map<string, WorkingMatchup>();
   for (const m of allMatchups) {
     const roundRow = knockoutRoundRows.find((r) => r.id === m.fantasyRoundId);
     if (roundRow) {
-      matchupByRoundAndIndex.set(`${roundRow.round}_${m.matchIndex}`, m);
+      workingByKey.set(`${roundRow.round}_${m.matchIndex}`, {
+        id: m.id,
+        homeManagerId: m.homeManagerId ?? null,
+        awayManagerId: m.awayManagerId ?? null,
+        winnerManagerId: m.winnerManagerId ?? null,
+        homeSeedSource: m.homeSeedSource ?? null,
+        awaySeedSource: m.awaySeedSource ?? null,
+      });
     }
   }
 
   await db.transaction(async (tx) => {
-    for (const matchup of allMatchups) {
-      const updates: {
-        homeManagerId?: string | null;
-        awayManagerId?: string | null;
-        winnerManagerId?: string | null;
-      } = {};
+    // Process rounds in dependency order: qf → sf → final.
+    // After writing a matchup, update workingByKey so the next layer can see it.
+    for (const roundName of ROUND_ORDER) {
+      const roundId = roundIdByName.get(roundName);
+      if (!roundId) continue;
 
-      // Resolve home seed if not yet set
-      if (matchup.homeManagerId == null && matchup.homeSeedSource) {
-        const parsed = parseSeedSource(matchup.homeSeedSource);
-        if (parsed.type === "standing") {
-          const managerId = standingsByKey.get(`${parsed.rank}${parsed.groupLetter}`);
-          if (managerId) updates.homeManagerId = managerId;
-        } else if (parsed.type === "bye") {
-          // BYE on home side shouldn't normally happen per templates, but handle gracefully
-          updates.homeManagerId = null;
-        } else if (parsed.type === "winner") {
-          const refMatchup = matchupByRoundAndIndex.get(`${parsed.round}_${parsed.matchIndex}`);
-          if (refMatchup?.winnerManagerId) {
-            updates.homeManagerId = refMatchup.winnerManagerId;
+      for (const matchup of allMatchups.filter((m) => m.fantasyRoundId === roundId)) {
+        const working = workingByKey.get(`${roundName}_${matchup.matchIndex}`)!;
+        const updates: {
+          homeManagerId?: string;
+          awayManagerId?: string;
+          winnerManagerId?: string;
+        } = {};
+
+        // Resolve home seed if not yet set
+        if (working.homeManagerId == null && working.homeSeedSource) {
+          const parsed = parseSeedSource(working.homeSeedSource);
+          if (parsed.type === "standing") {
+            const mgr = standingsByKey.get(`${parsed.rank}${parsed.groupLetter}`);
+            if (mgr) updates.homeManagerId = mgr;
+          } else if (parsed.type === "winner") {
+            const ref = workingByKey.get(`${parsed.round}_${parsed.matchIndex}`);
+            if (ref?.winnerManagerId) updates.homeManagerId = ref.winnerManagerId;
           }
         }
-      }
 
-      // Resolve away seed if not yet set
-      if (matchup.awayManagerId == null && matchup.awaySeedSource) {
-        const parsed = parseSeedSource(matchup.awaySeedSource);
-        if (parsed.type === "bye") {
-          // BYE away: auto-win for home
-          const resolvedHomeId = updates.homeManagerId ?? matchup.homeManagerId;
-          if (resolvedHomeId) {
-            updates.winnerManagerId = resolvedHomeId;
-          }
-          // awayManagerId stays null
-        } else if (parsed.type === "standing") {
-          const managerId = standingsByKey.get(`${parsed.rank}${parsed.groupLetter}`);
-          if (managerId) updates.awayManagerId = managerId;
-        } else if (parsed.type === "winner") {
-          const refMatchup = matchupByRoundAndIndex.get(`${parsed.round}_${parsed.matchIndex}`);
-          if (refMatchup?.winnerManagerId) {
-            updates.awayManagerId = refMatchup.winnerManagerId;
+        // Resolve away seed if not yet set
+        if (working.awayManagerId == null && working.awaySeedSource) {
+          const parsed = parseSeedSource(working.awaySeedSource);
+          if (parsed.type === "bye") {
+            // BYE: home manager auto-wins; winnerManagerId set at seed-resolution time
+            const homeId = updates.homeManagerId ?? working.homeManagerId;
+            if (homeId) updates.winnerManagerId = homeId;
+          } else if (parsed.type === "standing") {
+            const mgr = standingsByKey.get(`${parsed.rank}${parsed.groupLetter}`);
+            if (mgr) updates.awayManagerId = mgr;
+          } else if (parsed.type === "winner") {
+            const ref = workingByKey.get(`${parsed.round}_${parsed.matchIndex}`);
+            if (ref?.winnerManagerId) updates.awayManagerId = ref.winnerManagerId;
           }
         }
-      }
 
-      if (Object.keys(updates).length > 0) {
-        await tx
-          .update(fantasyMatchups)
-          .set(updates)
-          .where(eq(fantasyMatchups.id, matchup.id));
+        if (Object.keys(updates).length > 0) {
+          await tx
+            .update(fantasyMatchups)
+            .set(updates)
+            .where(eq(fantasyMatchups.id, matchup.id));
+          // Thread resolved values forward so dependent rounds see them in this pass
+          Object.assign(working, updates);
+        }
       }
     }
   });
