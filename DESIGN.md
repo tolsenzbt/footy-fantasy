@@ -2,9 +2,9 @@
 
 **Project:** A fantasy soccer app for the 2026 FIFA World Cup, built for a private league of 8, 12, or 16 friends.
 
-**Status:** Pre-implementation. All format and architectural decisions in this document are locked unless explicitly revisited.
+**Status:** In active implementation. Backend/logic complete through the standings + bracket read-model phase (see §16). Stats ingestion and all UI remain. All format and architectural decisions in this document are locked unless explicitly revisited.
 
-**Last updated:** May 6, 2026 (v3 — admin/commissioner/manager role split, round identifier clarification, nation status model, eliminated-roster handling clarified, MVP commissioner UI deferred)
+**Last updated:** June 1, 2026 (v4 — reconciled to built state: schema/auth/draft/group-draw/lineup/scoring/waivers/redraft/standings+bracket complete; recorded multi-manager H2H tiebreaker resolution, 12-team cross-group-counts rule, and random_tiebreak storage; §16 rewritten to reflect remaining phases)
 
 ---
 
@@ -52,10 +52,13 @@ The fantasy season ends when 8 real teams are still alive. Real-world Semifinals
 The app supports three league formats: **8, 12, or 16 managers.** Format is selected by the admin and locked at draft start.
 
 ### Group-stage tiebreakers (all formats, in order)
-1. Total fantasy points scored across all matchups (Points For)
-2. Head-to-head result between tied managers
-3. Highest single-matchday score
-4. Random
+Standings rank is **Points For first**, not wins-first — the W/L/D record is displayed but PF is the primary sort key. The chain, applied within each group:
+1. Total fantasy points scored across all matchups (Points For), descending
+2. Head-to-head result between tied managers:
+   - **2-way tie:** the result of the single matchup between them (a draw in that matchup falls through to step 3).
+   - **3+-way tie:** a mini-table of only the games played among the tied managers, ranked by W/L/D record in those games. If it fully separates them, done. If it partially separates (a subset remains tied), the full chain is re-run from step 1 on that still-tied subset. A subset that remains tied after the mini-table (e.g. a circular A>B>C>A result) falls through to step 3.
+3. Highest single-matchday score (the manager's own highest single-round fantasy total across the three matchdays), descending
+4. Random — a per-manager `group_standings.random_tiebreak` value, assigned once at first standings computation and reused on every recompute so ties never reshuffle across recomputes.
 
 ---
 
@@ -105,6 +108,8 @@ The schema must track these as separate concepts.
 - `group_md3`: A2-A3, B2-B3, C2-C3, D2-D3, A1-B1, C1-D1
 
 **Cross-group pairing structure:** A↔B and C↔D groups are paired, with same-position-slot managers facing each other on their cross-group matchday.
+
+**Cross-group match counts toward standings.** Every manager plays exactly 3 matches; all 3 count toward group W/L/D/PF, including the one cross-group match. The cross-group pairing is purely the mechanism for generating a third matchup in a 3-manager group — it carries the same standings weight as the two in-group matches. Standings computation applies no in-group/cross-group filtering.
 
 **Knockout qualification:** Top 2 from each group → 8 advance.
 
@@ -490,7 +495,7 @@ The commissioner role is reserved for future per-league self-management. When im
 ## 14. MVP Feature List
 
 ### Accounts & league
-- Email login (magic link or password)
+- Email login (magic link only for MVP, per §9)
 - Admin user creation, kick/reset
 - League settings page (read-only for managers, editable for admin)
 
@@ -566,17 +571,27 @@ Before implementing any new feature:
 
 ## 16. Open Items
 
-(All initial-setup items complete: repo, scaffolding, schema, migrations, RLS, seed, auth.)
-
-Remaining major engineering phases before MVP:
-- League creation (DB-direct per §13; no UI) and admin bootstrap procedure
+### Complete (backend/logic, merged to main)
+- Repo, scaffolding, schema, migrations, RLS, seed
+- Auth (magic link, profile-mirroring trigger, permission helpers) and admin bootstrap procedure
+- League creation (DB-direct per §13; no UI)
 - Initial async snake draft system
-- Group draw event UI + slot assignment → schedule generation
-- Lineup setting (formation validation, captain/VC, per-player kickoff lock)
-- Stats ingestion job (API-Football polling + fantasy point calculation). Includes the §8 waiver-extension rule (nation kicks off before processing → bump to next round), deferred to this phase because it requires real fixture kickoff times. Resolver round columns already exist; this is resolver logic + a stubbed-kickoff test, no migration.
-- Free agency + waivers (drop window, weekly processing, claim resolution)
-- Matchup view + group standings + knockout bracket display
-- Mass-release event at end of group stage + supplemental redraft
+- Group draw + slot assignment → schedule generation (creates the full group-stage AND knockout `fantasy_matchups` skeleton; knockout rows carry seed sources with null managers)
+- Lineup backend (formation validation, captain/VC, per-player kickoff lock, auto-rollover read)
+- Scoring engine (§6, pure function) + starting-XI lineup aggregation (§5)
+- Free agency + waivers (drop window, weekly processing, claim resolution, conditional drops)
+- Group-stage → knockout transition + supplemental redraft (§7 redraft, §8 mass-release, priority reset, +1h first-knockout waiver event)
+- Matchup resolution + group standings + knockout bracket — read models AND the writers that populate them: `resolveMatchups` (per-round scoring → matchup results), `computeStandings` (§2 chain → ranked `group_standings`), `resolveBracket` (seed resolution + round-by-round advancement, 8-team bye auto-win). Live matchup view computes the in-progress round on read; finalized rounds read stored scores.
+
+All of the above is backend/logic only. No UI exists yet — UI is deliberately the final phase so look-and-feel is built once, consistently.
+
+### Remaining before MVP
+- **Stats ingestion job** (API-Football polling + fantasy point calculation). Computes `concededWhileOnPitch` from match events/subs and writes `player_match_scores.points` — the authoritative per-player base that matchup/standings/bracket all consume. Also sets nation `eliminated_at_round` (currently `recomputeAllNationStatus` only sets `next_fixture_id`). Calls `resolveMatchups` after ingesting each round. Includes the §8 waiver-extension rule (nation kicks off before processing → bump to next round). Resolver round columns already exist; this is resolver logic + a stubbed-kickoff test, no migration.
+- **UI** — all views: draft board, group draw, roster/lineup, waivers/FA, live matchup, group standings, knockout bracket.
+
+### Known follow-ups (non-blocking)
+- **Schema-drift audit:** migrations 0007/0008 were authored and their code tested (against mocks) before the schema reached the live DB. A reconciliation pass should confirm every column the merged code references exists in the deployed database, to catch any further drift before the real draft.
+- **Drizzle migration-chain repair:** `drizzle/meta/` is missing a 0007 snapshot, which caused 0008 to be generated cumulatively. The ledger was reconciled manually (Path 2); the snapshot chain should be repaired before the next `drizzle-kit generate` so it stops re-emitting phantom statements.
 
 ---
 
