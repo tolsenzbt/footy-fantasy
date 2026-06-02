@@ -591,7 +591,7 @@ All of the above is backend/logic only. No UI exists yet — UI is deliberately 
 
 ### Known follow-ups (non-blocking)
 - **Schema-drift audit:** migrations 0007/0008 were authored and their code tested (against mocks) before the schema reached the live DB. A reconciliation pass should confirm every column the merged code references exists in the deployed database, to catch any further drift before the real draft.
-- **Drizzle migration-chain repair:** `drizzle/meta/` is missing a 0007 snapshot, which caused 0008 to be generated cumulatively. The ledger was reconciled manually (Path 2); the snapshot chain should be repaired before the next `drizzle-kit generate` so it stops re-emitting phantom statements.
+- **Drizzle migration chain — verified stable (June 1).** `drizzle/meta/` has no 0007 snapshot (0008 was generated cumulatively), but because 0008's snapshot is itself cumulative the baseline is complete: `drizzle-kit generate` reports "no schema changes" with no phantom statements, and `db:migrate` accepts the manually reconciled ledger (Path 2) as zero-pending. No repair needed unless a future `generate` emits phantom 0007/0008 statements, in which case backfill a 0007 snapshot.
 
 ---
 
