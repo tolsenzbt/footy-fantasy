@@ -54,6 +54,7 @@ export const realFixtures = pgTable("real_fixtures", {
     .references(() => nations.id),
   kickoffAt: timestamp("kickoff_at", { withTimezone: true }).notNull(),
   status: text("status").notNull().default("scheduled"),
+  finalizedAt: timestamp("finalized_at", { withTimezone: true }),
   apiFootballId: integer("api_football_id").notNull().unique(),
   homeScore: integer("home_score"),
   awayScore: integer("away_score"),

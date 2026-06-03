@@ -86,6 +86,7 @@ export const fantasyRounds = pgTable(
     opensAt: timestamp("opens_at", { withTimezone: true }),
     locksAt: timestamp("locks_at", { withTimezone: true }),
     processesAt: timestamp("processes_at", { withTimezone: true }),
+    statsIngestedAt: timestamp("stats_ingested_at", { withTimezone: true }),
     status: text("status").notNull().default("pending"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()

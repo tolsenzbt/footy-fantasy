@@ -1,0 +1,16 @@
+name: Stats Ingest Sweep
+
+on:
+  schedule:
+    - cron: "2/5 * * * *"   # every 5 minutes, offset by 2 to avoid on-the-hour collisions
+  workflow_dispatch:
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger ingest route
+        run: |
+          curl -f -s -X GET \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            https://footy-fantasy.vercel.app/api/cron/ingest
