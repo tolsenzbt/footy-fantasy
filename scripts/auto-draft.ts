@@ -132,8 +132,8 @@ async function main() {
   while (state.draft.status === "active") {
     const managerId = state.onTheClockManagerId!;
     const pickNumber = state.draft.currentPickNumber!;
-    const { round } = pickToRound(pickNumber, leagueSize);
-    const slot = resolveDraftPosition(pickNumber, leagueSize);
+    const { round } = pickToRound(pickNumber, leagueSize, 14);
+    const slot = resolveDraftPosition(pickNumber, leagueSize, 14);
 
     const counts = await getRosterCounts(leagueId, managerId);
     const legal = legalPositions(counts);
