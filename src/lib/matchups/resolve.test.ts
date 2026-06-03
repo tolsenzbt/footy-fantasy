@@ -52,6 +52,7 @@ function makeMatchup(
     homeManagerId: string | null;
     awayManagerId: string | null;
     awaySeedSource: string | null;
+    matchIndex: number;
   }> = {},
 ) {
   return {

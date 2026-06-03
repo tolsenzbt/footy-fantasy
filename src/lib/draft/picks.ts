@@ -25,12 +25,13 @@ export async function submitPick(args: {
   droppedPlayerId?: string;
 }): Promise<{ pickNumber: number; isFinalPick: boolean }> {
   if (args.draftType === "redraft") {
-    return submitRedraftPick({
+    const result = await submitRedraftPick({
       leagueId: args.leagueId,
       managerId: args.managerId,
       playerId: args.playerId,
       dropPlayerId: args.droppedPlayerId,
     });
+    return { pickNumber: result.pickNumber, isFinalPick: result.isComplete };
   }
 
   const now = new Date();
