@@ -4,7 +4,7 @@
 
 **Status:** In active implementation. Backend/logic complete through the standings + bracket read-model phase (see §16). Stats ingestion and all UI remain. All format and architectural decisions in this document are locked unless explicitly revisited.
 
-**Last updated:** June 2, 2026 (v5 — stats ingestion + live scoring phase designed: §6 concededWhileOnPitch derivation + stats storage model, §10 ingestion sweep / GitHub Actions trigger / ROUND_SETTLE_HOURS / live provisional scoring / cross-cron gating, §11 cron split + Next.js 16 correction, §16 updated for migration 0009)
+**Last updated:** June 3, 2026 (v6 — deployment live: §9 Resend SMTP integration + custom domain `footyfantasy.app`, admin bootstrap confirmed against deployed DB; §11 custom domain. v5 — stats ingestion + live scoring phase designed: §6 concededWhileOnPitch derivation + stats storage model, §10 ingestion sweep / GitHub Actions trigger / ROUND_SETTLE_HOURS / live provisional scoring / cross-cron gating, §11 cron split + Next.js 16 correction, §16 updated for migration 0009)
 
 ---
 
@@ -403,9 +403,10 @@ Rosters lock at end of group stage. Players on eliminated managers' rosters are 
 - **Session lifetime:** Supabase defaults — 1-hour access token auto-refreshed via cookie middleware, 60-day refresh token. Users stay logged in indefinitely on a given device as long as they visit at least once every 60 days.
 - **User creation:** Admin creates accounts via `supabase.auth.admin.createUser()` (server action, service role). No public registration UI.
 - **Profile mirroring:** A Postgres trigger (`on_auth_user_created`) on `auth.users` insert creates the corresponding `public.profiles` row atomically. `display_name` defaults to the email prefix; admin/user can update later.
-- **Admin bootstrap:** First admin self-signs up via the magic link flow, then is promoted via a one-time SQL update (`update public.profiles set is_app_admin = true where email = '...'`). Documented in `docs/setup.md`.
+- **Admin bootstrap:** First admin self-signs up via the magic link flow, then is promoted via a one-time SQL update (`update public.profiles set is_app_admin = true where email = '...'`). Documented in `docs/setup.md`. **Done** — bootstrap admin account is live and promoted against the deployed DB; the `on_auth_user_created` trigger is confirmed firing in production (profile row auto-created on first login).
 - **No social login** (Google/Apple OAuth out of scope for MVP — adding Google later is ~30 minutes of work)
 - **No public registration**
+- **Email delivery (SMTP):** A custom SMTP provider is **required before managers can log in** — Supabase's built-in default SMTP is best-effort only (no delivery SLA), capped at 2 emails/hour, and only delivers to the project's own org-member addresses, so magic links to league members would silently fail. **Resend** is the configured provider (free tier, 3,000/mo), connected to Supabase via Resend's Supabase integration (Resend-side, not Supabase-side), which provisions the API key and writes Supabase's SMTP settings automatically. Sender: `noreply@footyfantasy.app`. After connecting, the auth email rate limit defaults to 25/hour; raised in Authentication → Rate Limits. SPF/DKIM/DMARC records auto-added in Cloudflare DNS via Resend's Cloudflare integration.
 
 ### Roles
 The system distinguishes three roles, stored in two distinct places:
@@ -586,7 +587,7 @@ without API calls).
 | Auth | Supabase (bundled) | $0 |
 | Cron jobs | Vercel Cron (Hobby) + GitHub Actions | $0 |
 | Stats API | API-Football (paid plan) | paid |
-| Domain | Vercel subdomain (`footy-fantasy.vercel.app`) | $0 |
+| Domain | `footyfantasy.app` (custom, via Cloudflare registrar + DNS) | ~$14/yr |
 
 **Total: ~$0/month infrastructure** (Vercel + Supabase free tiers), plus the
 API-Football paid plan for stats.
