@@ -617,6 +617,7 @@ The admin (project owner) has full access to the underlying database and can per
 
 **Operations handled via DB:**
 - Manual stat / fantasy point override
+- Note: player_match_stats.red_card is a boolean column; the scoring engine takes redCards as a number (0/1), bridged at ingestion. An admin correcting a red card directly in the DB sets the boolean. Scoring re-triggers re-derive from raw stats, so the bool is the correct thing to edit — but the engine never reads the schema column directly, so a manual points override (player_match_scores.override_points) is the more reliable correction path for a disputed score.
 - Manual waiver controls (process); corrections via direct roster moves, not waiver-event undo
 - Lineup reset for any manager
 - Initial draft order override
@@ -722,17 +723,22 @@ Before implementing any new feature:
 - Free agency + waivers (drop window, weekly processing, claim resolution, conditional drops)
 - Group-stage → knockout transition + supplemental redraft (§7 redraft, §8 mass-release, priority reset, +1h first-knockout waiver event)
 - Matchup resolution + group standings + knockout bracket — read models AND the writers that populate them: `resolveMatchups` (per-round scoring → matchup results), `computeStandings` (§2 chain → ranked `group_standings`), `resolveBracket` (seed resolution + round-by-round advancement, 8-team bye auto-win). Live matchup view computes the in-progress round on read; finalized rounds read stored scores.
+- Stats ingestion + live scoring sweep (§6/§10) — unit-tested, NOT yet validated end-to-end against the deployed DB. The stateless idempotent catch-up sweep: derives concededWhileOnPitch from events/subs (full Vitest coverage incl. the §6 855767 own-goal and 855736 VAR/sub/red-card cases), writes player_match_stats, recomputes player_match_scores.points via the §6 engine (override_points preserved via SQL CASE), refreshes nation status, resolves settled rounds (resolveMatchups→computeStandings→resolveBracket) one hour after last fixture finalizes, schedules waiver events, gated against the waiver cron via stats_ingested_at. Cron route (Bearer ${CRON_SECRET}) + GitHub Actions trigger (~5 min) wired. mapRound R16→sf bug fixed; CRON_SECRET set across .env.local/Vercel/GitHub.
 
 All of the above is backend/logic only. No UI exists yet — UI is deliberately the final phase so look-and-feel is built once, consistently.
 
 ### Remaining before MVP
-- **Stats ingestion job** (API-Football polling + fantasy point calculation; designed §6/§10, this phase). A stateless idempotent catch-up sweep that derives `concededWhileOnPitch` from match events/subs (§6), writes `player_match_stats` and recomputes `player_match_scores.points` via the §6 engine, refreshes nation status incl. `eliminated_at_round`, and resolves settled rounds (`resolveMatchups` → `computeStandings` → `resolveBracket`) one hour after their last fixture finalizes (`ROUND_SETTLE_HOURS`). Triggered by GitHub Actions ~every 5 min; live provisional scoring surfaces on read between settle and finalization. Schedules waiver events on round completion and is gated against the waiver cron via `fantasy_rounds.stats_ingested_at` (§8, §10). Includes the §8 waiver-extension rule. 
-**Requires migration 0009 — adds player_match_stats.conceded_while_on_pitch, player_match_stats.penalty_saves, player_match_stats.penalties_missed, fantasy_rounds.stats_ingested_at, real_fixtures.finalized_at. (Supersedes the earlier "no migration" note, which referred only to the deferred waiver-extension sliver.)
 - **UI** — all views: draft board, group draw, roster/lineup, waivers/FA, live matchup, group standings, knockout bracket.
+
+### Pre-tournament validation (blocking before real draft / R32)
+- **Full-season end-to-end validation** against the deployed DB — the stats-ingestion sweep and the full resolution chain have unit coverage but have never run against real schema + real (or replayed) API-Football data. This campaign is the gate.
+- **Knockout round-string verification** — mapRound's "Round of 32"/"Round of 16"/"Quarter-finals" strings are inferred from API-Football's documented naming, not confirmed against a live response. Verify against /fixtures/rounds?league=1&season=2026 before the real R32 (June 28). Comment in round-map.ts flags this.
+- **Red-card source split** — concededWhileOnPitch (event-derived) and redCards (per-player API stat) can disagree mid-match; documented as acceptable for provisional scoring, revisit if live data misbehaves.
 
 ### Known follow-ups (non-blocking)
 - **Schema-drift audit:** migrations 0007/0008 were authored and their code tested (against mocks) before the schema reached the live DB. A reconciliation pass should confirm every column the merged code references exists in the deployed database, to catch any further drift before the real draft.
 - **Drizzle migration chain — reconciled against deployed DB (June 3). A drift audit against the deployed DB found migration 0006 (add_waiver_claim_rank) present on disk and in the journal but never applied — its ledger row was absent and waiver_claims.rank was missing — a residue of the earlier manual ledger reconciliation (Path 2), which had dropped 0006's row while 0005 and 0007–0009 applied normally. Fixed by applying 0006's ALTER TABLE manually and backfilling its __drizzle_migrations row (hash = SHA256 of the migration file, created_at = journal when). Ledger now matches journal (10 rows) and db:generate reports "no schema changes." All migrations 0000–0009 are confirmed applied to the deployed DB; future migrations can use normal db:migrate without manual reconciliation.
+- **Draft-pick return contract unified (June 4).** submitRedraftPick previously returned isComplete while the dispatcher and initial-draft path used isFinalPick, bridged by a manual rename in picks.ts that had silently rotted (stale picks.test.ts assertion). Both paths now return isFinalPick; the bridge is gone (picks.ts redraft branch is a plain pass-through). Suite 471/471.
 
 ---
 
