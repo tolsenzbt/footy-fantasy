@@ -20,6 +20,9 @@ tsconfig.tsbuildinfo
 # Seed script API cache
 cache/
 
+# Other scripts
+scripts/val-*.ts
+
 # OS
 .DS_Store
 
