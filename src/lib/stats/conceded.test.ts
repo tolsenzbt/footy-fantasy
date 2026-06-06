@@ -456,6 +456,32 @@ describe("deriveAllPlayerRawStats", () => {
     expect(result.get(35533)?.penaltiesMissed).toBe(1);
   });
 
+  it("null penalty/card fields from API are coerced to 0 (API returns null despite type claiming number)", () => {
+    // Regression: API-Football returns null for penalty.saved, penalty.missed, cards.yellow, cards.red
+    // when a player had none. The type claimed number but runtime reality is null.
+    // deriveAllPlayerRawStats must coerce to 0 before passing to upsertPlayerMatchStats.
+    const qatarPlayers = makeQatarPlayers();
+    const gk = qatarPlayers.players.find((p) => p.player.id === 2525)!;
+    // Simulate what the real API returns for a player with no penalties or cards
+    gk.statistics[0].penalty.saved = null as unknown as number;
+    gk.statistics[0].penalty.missed = null as unknown as number;
+    gk.statistics[0].cards.yellow = null as unknown as number;
+    gk.statistics[0].cards.red = null as unknown as number;
+
+    const result = deriveAllPlayerRawStats(
+      [],
+      [qatarPlayers, { team: { id: ECUADOR_TEAM_ID, name: "Ecuador" }, players: [] }],
+      QATAR_TEAM_ID,
+      ECUADOR_TEAM_ID
+    );
+
+    const stats = result.get(2525);
+    expect(stats?.penaltySaves).toBe(0);
+    expect(stats?.penaltiesMissed).toBe(0);
+    expect(stats?.yellowCards).toBe(0);
+    expect(stats?.redCard).toBe(false);
+  });
+
   it("ownGoals are derived from Goal events with detail=Own Goal where player.id matches", () => {
     const events = [OG_EVENT_MOROCCO_CANADA];
     const result = deriveAllPlayerRawStats(

@@ -27,13 +27,15 @@ export type ApiPlayerStatistics = {
     assists: number | null;
     saves: number | null;
   };
-  cards: { yellow: number; red: number };
+  // API-Football returns null for cards/penalty fields when the player had none.
+  // The type claims number but the runtime reality is number | null.
+  cards: { yellow: number | null; red: number | null };
   penalty: {
     won: number | null;
     commited: number | null;
-    scored: number;
-    missed: number;
-    saved: number;
+    scored: number | null;
+    missed: number | null;
+    saved: number | null;
   };
 };
 
@@ -206,10 +208,17 @@ export function deriveAllPlayerRawStats(
         goals: s.goals.total ?? 0,
         assists: s.goals.assists ?? 0,
         saves: s.goals.saves ?? 0,
-        penaltySaves: s.penalty.saved,
-        penaltiesMissed: s.penalty.missed,
-        yellowCards: s.cards.yellow,
-        redCard: s.cards.red > 0,
+        penaltySaves: s.penalty.saved ?? 0,
+        penaltiesMissed: s.penalty.missed ?? 0,
+        yellowCards: s.cards.yellow ?? 0,
+        // redCard comes from the per-player API stat (/fixtures/players), while
+        // concededWhileOnPitch is derived from event intervals (/fixtures/events).
+        // Mid-match these two sources can lag relative to each other: a red card
+        // in the player stat may appear before the corresponding Red Card event lands,
+        // which would void the clean sheet via redCards without yet truncating the
+        // conceded interval. This self-heals once events catch up and is acceptable
+        // for live provisional scoring; at full time both sources are settled.
+        redCard: (s.cards.red ?? 0) > 0,
         ownGoals: ownGoalCounts.get(p.player.id) ?? 0,
         goalsConceded: apiConceded,
         // cleanSheet raw: API-reported signal — goals.conceded===0 + 60+ minutes
