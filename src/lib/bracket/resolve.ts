@@ -123,20 +123,22 @@ export async function resolveBracket(leagueId: string): Promise<void> {
           winnerManagerId?: string;
         } = {};
 
-        // Resolve home seed if not yet set
-        if (working.homeManagerId == null && working.homeSeedSource) {
+        // Resolve home seed.
+        // Standing-type: always re-resolve (standings update each matchday).
+        // Winner-type: only set once (match winners are final once written).
+        if (working.homeSeedSource) {
           const parsed = parseSeedSource(working.homeSeedSource);
           if (parsed.type === "standing") {
             const mgr = standingsByKey.get(`${parsed.rank}${parsed.groupLetter}`);
             if (mgr) updates.homeManagerId = mgr;
-          } else if (parsed.type === "winner") {
+          } else if (parsed.type === "winner" && working.homeManagerId == null) {
             const ref = workingByKey.get(`${parsed.round}_${parsed.matchIndex}`);
             if (ref?.winnerManagerId) updates.homeManagerId = ref.winnerManagerId;
           }
         }
 
-        // Resolve away seed if not yet set
-        if (working.awayManagerId == null && working.awaySeedSource) {
+        // Resolve away seed.
+        if (working.awaySeedSource) {
           const parsed = parseSeedSource(working.awaySeedSource);
           if (parsed.type === "bye") {
             // BYE: home manager auto-wins; winnerManagerId set at seed-resolution time
@@ -145,7 +147,7 @@ export async function resolveBracket(leagueId: string): Promise<void> {
           } else if (parsed.type === "standing") {
             const mgr = standingsByKey.get(`${parsed.rank}${parsed.groupLetter}`);
             if (mgr) updates.awayManagerId = mgr;
-          } else if (parsed.type === "winner") {
+          } else if (parsed.type === "winner" && working.awayManagerId == null) {
             const ref = workingByKey.get(`${parsed.round}_${parsed.matchIndex}`);
             if (ref?.winnerManagerId) updates.awayManagerId = ref.winnerManagerId;
           }

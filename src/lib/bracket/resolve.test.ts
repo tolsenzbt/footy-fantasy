@@ -285,15 +285,16 @@ describe("resolveBracket", () => {
     expect(set.awayManagerId).toBe("mgr-1b");
   });
 
-  it("re-entrant: does not overwrite already-set managerIds", async () => {
-    // Matchup already has homeManagerId set
+  it("re-entrant: re-resolves standing-type seeds to reflect latest standings", async () => {
+    // Matchup already has homeManagerId set (from a prior matchday's resolveBracket run).
+    // Standing-type seeds are always re-resolved so final MD3 standings take effect.
     const matchup = makeMatchup({
       id: "qf-1",
       fantasyRoundId: QF_ROUND_ID,
       matchIndex: 1,
       homeSeedSource: "1A",
       awaySeedSource: "2B",
-      homeManagerId: MANAGER_1A, // already resolved
+      homeManagerId: MANAGER_1A, // already resolved (may match or differ from current standings)
     });
 
     mockDb.select
@@ -315,15 +316,12 @@ describe("resolveBracket", () => {
 
     await resolveBracket(LEAGUE_ID);
 
-    // Only the away seed should produce an update (home already set)
-    if (capturedUpdates.length > 0) {
-      const set = capturedUpdates[0].set as Record<string, unknown>;
-      // homeManagerId should not be in the update (it was already set)
-      expect(set.homeManagerId).toBeUndefined();
-      expect(set.awayManagerId).toBe(MANAGER_2B);
-    }
-    // If no updates at all, that's also acceptable — implementation may skip the matchup
-    // (either behavior is valid as long as home isn't overwritten)
+    // Both seeds should be re-resolved: home gets MANAGER_1A (same as before),
+    // away gets MANAGER_2B (newly resolved).
+    expect(capturedUpdates.length).toBe(1);
+    const set = capturedUpdates[0].set as Record<string, unknown>;
+    expect(set.homeManagerId).toBe(MANAGER_1A);
+    expect(set.awayManagerId).toBe(MANAGER_2B);
   });
 
   it("8-team BYE chain: single call advances bye-winners into sf", async () => {
