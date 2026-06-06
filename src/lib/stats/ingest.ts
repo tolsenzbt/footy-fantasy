@@ -58,7 +58,6 @@ export type UpsertScoreArgs = {
   fixtureId: string;
   playerId: string;
   points: number;
-  preserveOverride: boolean;
   updatedAt: Date;
 };
 
@@ -183,7 +182,20 @@ async function buildRealDeps(allFixturesData: ApiAllFixturesItem[]): Promise<Swe
 
     upsertPlayerMatchStats: async (args) => {
       type StatsInsert = typeof playerMatchStats.$inferInsert;
-      const a = args as StatsInsert;
+      const raw = args as StatsInsert;
+      // Null-coerce fields the API may return as null for players who never
+      // faced a penalty, never saved, etc. Schema columns are NOT NULL default 0.
+      const a: StatsInsert = {
+        ...raw,
+        saves: raw.saves ?? 0,
+        penaltySaves: raw.penaltySaves ?? 0,
+        penaltiesMissed: raw.penaltiesMissed ?? 0,
+        goals: raw.goals ?? 0,
+        assists: raw.assists ?? 0,
+        goalsConceded: raw.goalsConceded ?? 0,
+        yellowCards: raw.yellowCards ?? 0,
+        ownGoals: raw.ownGoals ?? 0,
+      };
       const { fixtureId: _f, playerId: _p, ...rest } = a;
       await db
         .insert(playerMatchStats)
@@ -452,7 +464,6 @@ async function pollAndScoreFixture(
       fixtureId: fixture.id,
       playerId: playerRow.id,
       points,
-      preserveOverride: true,
       updatedAt: now,
     });
   }
