@@ -23,6 +23,7 @@
     "db:val-md2-ingest": "tsx --tsconfig tsconfig.scripts.json --env-file=.env.local scripts/val-md2-ingest.ts",
     "db:val-md3-ingest": "tsx --tsconfig tsconfig.scripts.json --env-file=.env.local scripts/val-md3-ingest.ts",
     "db:val-4a-knockout-fixtures": "tsx --tsconfig tsconfig.scripts.json --env-file=.env.local scripts/val-4a-knockout-fixtures.ts",
+    "db:val-4b-redraft": "tsx --tsconfig tsconfig.scripts.json --env-file=.env.local scripts/val-4b-redraft.ts",
     "db:set-lineup": "tsx --tsconfig tsconfig.scripts.json --env-file=.env.local scripts/set-lineup.ts",
     "db:get-lineup": "tsx --tsconfig tsconfig.scripts.json --env-file=.env.local scripts/get-lineup.ts",
     "test": "vitest run"
