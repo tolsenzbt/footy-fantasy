@@ -20,6 +20,7 @@ import {
 import { scorePlayer } from "@/lib/scoring/engine";
 import { resolveMatchups } from "@/lib/matchups/resolve";
 import { computeStandings } from "@/lib/standings/compute";
+import { setManagerEliminations } from "@/lib/standings/manager-elimination";
 import { resolveBracket } from "@/lib/bracket/resolve";
 import { recomputeAllNationStatus } from "@/lib/nation-status";
 import { deriveAllPlayerRawStats } from "./conceded";
@@ -477,6 +478,9 @@ async function resolveRound(round: RoundRow, now: Date, deps: SweepDeps): Promis
 
   await resolveMatchups(round.leagueId, round.fantasyRoundId);
   await computeStandings(round.leagueId);
+  if (round.fantasyRound === "group_md3") {
+    await setManagerEliminations(round.leagueId, now);
+  }
   await resolveBracket(round.leagueId);
 
   await deps.setStatsIngestedAt(round.fantasyRoundId, now);

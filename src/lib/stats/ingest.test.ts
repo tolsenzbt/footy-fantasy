@@ -15,6 +15,7 @@ vi.mock("@/lib/api-football", () => ({
 // ─── Mock resolve/standings/bracket modules ───────────────────────────────────
 vi.mock("@/lib/matchups/resolve", () => ({ resolveMatchups: vi.fn().mockResolvedValue(undefined) }));
 vi.mock("@/lib/standings/compute", () => ({ computeStandings: vi.fn().mockResolvedValue(undefined) }));
+vi.mock("@/lib/standings/manager-elimination", () => ({ setManagerEliminations: vi.fn().mockResolvedValue(undefined) }));
 vi.mock("@/lib/bracket/resolve", () => ({ resolveBracket: vi.fn().mockResolvedValue(undefined) }));
 vi.mock("@/lib/nation-status", () => ({ recomputeAllNationStatus: vi.fn().mockResolvedValue({ set: 0, cleared: 0, total: 0 }) }));
 
