@@ -363,7 +363,7 @@ export type SubmitRedraftPickArgs = {
 
 export async function submitRedraftPick(
   args: SubmitRedraftPickArgs
-): Promise<{ pickNumber: number; isComplete: boolean }> {
+): Promise<{ pickNumber: number; isFinalPick: boolean }> {
   const { leagueId, managerId, playerId, dropPlayerId } = args;
   const now = new Date();
 
@@ -559,7 +559,7 @@ export async function submitRedraftPick(
     }
   });
 
-  return { pickNumber, isComplete };
+  return { pickNumber, isFinalPick: isComplete };
 }
 
 // ── optOutOfRedraft ────────────────────────────────────────────────────────────

@@ -7,6 +7,7 @@ import { getDraftState } from "./state";
 import { leagueSizeFromFormat } from "./snake";
 import { runGroupDraw } from "@/lib/schedule/group-draw";
 import { submitRedraftPick } from "./redraft";
+import { applyOwnershipTransition } from "@/lib/waivers/ownership";
 
 const INITIAL_DRAFT_ROUNDS = 14;
 
@@ -31,7 +32,7 @@ export async function submitPick(args: {
       playerId: args.playerId,
       dropPlayerId: args.droppedPlayerId,
     });
-    return { pickNumber: result.pickNumber, isFinalPick: result.isComplete };
+    return result;
   }
 
   const now = new Date();
@@ -146,12 +147,13 @@ export async function submitPick(args: {
       clockExpired,
     });
 
-    await tx.insert(rosters).values({
-      leagueId: args.leagueId,
-      managerId: args.managerId,
-      playerId: args.playerId,
-      acquiredVia: "initial_draft",
-    });
+    await applyOwnershipTransition(
+      tx,
+      args.leagueId,
+      args.playerId,
+      { to: "rostered", managerId: args.managerId, acquiredVia: "initial_draft" },
+      now,
+    );
 
     if (isFinalPick) {
       await tx

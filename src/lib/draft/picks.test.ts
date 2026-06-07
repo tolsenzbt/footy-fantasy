@@ -19,10 +19,15 @@ const { mockSubmitRedraftPick } = vi.hoisted(() => ({
   mockSubmitRedraftPick: vi.fn(),
 }));
 
+const { mockApplyOwnershipTransition } = vi.hoisted(() => ({
+  mockApplyOwnershipTransition: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock("./state", () => ({ getDraftState: mockGetDraftState }));
 vi.mock("@/db", () => ({ db: mockDb }));
 vi.mock("@/lib/schedule/group-draw", () => ({ runGroupDraw: mockRunGroupDraw }));
 vi.mock("./redraft", () => ({ submitRedraftPick: mockSubmitRedraftPick }));
+vi.mock("@/lib/waivers/ownership", () => ({ applyOwnershipTransition: mockApplyOwnershipTransition }));
 
 // Build a fluent Drizzle select-chain mock that resolves `result` at .limit()
 // or when awaited directly (for queries without .limit()).
@@ -141,7 +146,7 @@ beforeEach(() => {
 
 describe("redraft routing", () => {
   it("delegates draftType=redraft to submitRedraftPick", async () => {
-    mockSubmitRedraftPick.mockResolvedValueOnce({ pickNumber: 1, isComplete: false });
+    mockSubmitRedraftPick.mockResolvedValueOnce({ pickNumber: 1, isFinalPick: false });
     const result = await submitPick({
       leagueId: LEAGUE_ID,
       draftType: "redraft",
@@ -154,7 +159,7 @@ describe("redraft routing", () => {
       playerId: PLAYER_ID,
       dropPlayerId: undefined,
     });
-    expect(result).toEqual({ pickNumber: 1, isComplete: false });
+    expect(result).toEqual({ pickNumber: 1, isFinalPick: false });
   });
 });
 
@@ -282,9 +287,14 @@ describe("happy path — pick 1 of 112 (8-manager league)", () => {
     expect(pickInsert.droppedPlayerId).toBeNull();
     expect(pickInsert.clockExpired).toBe(false);
 
-    // rosters insert
-    const rosterInsert = capturedTx!._insertMocks[1].mock.calls[0][0];
-    expect(rosterInsert.acquiredVia).toBe("initial_draft");
+    // ownership written via applyOwnershipTransition (not a raw rosters insert)
+    expect(mockApplyOwnershipTransition).toHaveBeenCalledWith(
+      expect.anything(),           // tx
+      LEAGUE_ID,
+      PLAYER_ID,
+      { to: "rostered", managerId: MANAGER_ID, acquiredVia: "initial_draft" },
+      expect.any(Date),
+    );
 
     // drafts update advances to pick 2
     const draftUpdate = capturedTx!._updateSetMocks[0].mock.calls[0][0];
@@ -293,6 +303,54 @@ describe("happy path — pick 1 of 112 (8-manager league)", () => {
 
     // leagues is NOT updated on non-final pick
     expect(capturedTx!._updateSetMocks).toHaveLength(1);
+  });
+});
+
+describe("ownership invariant — Fix A (§10 dual-write)", () => {
+  it("calls applyOwnershipTransition with status=rostered and acquiredVia=initial_draft on every pick", async () => {
+    // Verifies picks.ts routes through applyOwnershipTransition instead of raw
+    // tx.insert(rosters), so waiver_player_status is written atomically with rosters.
+    mockGetDraftState.mockResolvedValue(activeState);
+    mockDb.transaction.mockImplementationOnce(async (fn: (tx: unknown) => Promise<unknown>) =>
+      fn(makeTxMock())
+    );
+    setupSelects();
+
+    await submitPick({
+      leagueId: LEAGUE_ID,
+      draftType: "initial",
+      managerId: MANAGER_ID,
+      playerId: PLAYER_ID,
+    });
+
+    expect(mockApplyOwnershipTransition).toHaveBeenCalledWith(
+      expect.anything(),
+      LEAGUE_ID,
+      PLAYER_ID,
+      { to: "rostered", managerId: MANAGER_ID, acquiredVia: "initial_draft" },
+      expect.any(Date),
+    );
+  });
+
+  it("applyOwnershipTransition is called inside the pick transaction (same tx object)", async () => {
+    mockGetDraftState.mockResolvedValue(activeState);
+    let capturedTx: unknown;
+    mockDb.transaction.mockImplementationOnce(async (fn: (tx: unknown) => Promise<unknown>) => {
+      capturedTx = makeTxMock();
+      return fn(capturedTx);
+    });
+    setupSelects();
+
+    await submitPick({
+      leagueId: LEAGUE_ID,
+      draftType: "initial",
+      managerId: MANAGER_ID,
+      playerId: PLAYER_ID,
+    });
+
+    // The first positional arg to applyOwnershipTransition must be the tx passed into the transaction callback.
+    const txArg = mockApplyOwnershipTransition.mock.calls[0][0];
+    expect(txArg).toBe(capturedTx);
   });
 });
 
