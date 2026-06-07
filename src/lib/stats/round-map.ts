@@ -12,9 +12,13 @@ export function mapRound(roundStr: string): FantasyRoundId | null {
     if (n === 2) return "group_md2";
     if (n === 3) return "group_md3";
   }
+  // NOTE: the exact knockout round-label strings returned by API-Football for the
+  // 2026 WC ("Round of 32", "Round of 16", "Quarter-finals") are inferred from
+  // API-Football's documented naming convention but NOT yet verified against a live
+  // /fixtures/rounds?league=1&season=2026 response. These branches MUST be confirmed
+  // against a real API call before the Round of 32 begins (June 28, 2026).
   if (r.includes("round of 32")) return "qf";
-  if (r.includes("round of 16") && !r.includes("round of 16 - 2")) return "sf";
-  if (r.includes("round of 16 - 2")) return "qf";
+  if (r.includes("round of 16")) return "sf";
   if (r.includes("quarter-final") || r.includes("quarterfinal")) return "final";
   return null;
 }
