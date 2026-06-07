@@ -8,6 +8,7 @@ out/
 # Build output
 dist/
 tsconfig.tsbuildinfo
+*.tsbuildinfo
 
 # Env files
 .env
@@ -22,6 +23,11 @@ cache/
 
 # Other scripts
 scripts/val-*.ts
+scripts/query-*.ts
+scripts/setup-validation-league.ts
+scripts/activate-draft.ts
+scripts/auto-lineups.ts
+scripts/fix-0006.ts
 
 # OS
 .DS_Store
