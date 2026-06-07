@@ -14,6 +14,10 @@ import {
   realFixtures,
 } from "@/db/schema";
 import { and, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
+
+function isUniqueViolation(err: unknown): boolean {
+  return typeof err === "object" && err !== null && (err as { code?: string }).code === "23505";
+}
 import { applyOwnershipTransition } from "@/lib/waivers/ownership";
 import { resolveDraftPosition } from "./snake";
 import type { InferSelectModel } from "drizzle-orm";
@@ -470,94 +474,97 @@ export async function submitRedraftPick(
   let pickNumber = 0;
   let isComplete = false;
 
-  await db.transaction(async (tx) => {
-    // Lock the draft row
-    const [lockedDraft] = await tx
-      .select()
-      .from(drafts)
-      .where(and(eq(drafts.leagueId, leagueId), eq(drafts.type, "redraft")))
-      .for("update")
-      .limit(1);
+  try {
+    await db.transaction(async (tx) => {
+      // Lock the draft row
+      const [lockedDraft] = await tx
+        .select()
+        .from(drafts)
+        .where(and(eq(drafts.leagueId, leagueId), eq(drafts.type, "redraft")))
+        .for("update")
+        .limit(1);
 
-    if (!lockedDraft || lockedDraft.status !== "active") {
-      throw new Error("Redraft is no longer active");
-    }
-    if (lockedDraft.currentPickNumber !== state.draft.currentPickNumber) {
-      throw new Error(
-        `Pick number mismatch: expected ${state.draft.currentPickNumber} but draft is now at ${lockedDraft.currentPickNumber}`
-      );
-    }
+      if (!lockedDraft || lockedDraft.status !== "active") {
+        throw new Error("Redraft is no longer active");
+      }
+      if (lockedDraft.currentPickNumber !== state.draft.currentPickNumber) {
+        return; // concurrent pick won — pickNumber stays 0
+      }
 
-    pickNumber = lockedDraft.currentPickNumber!;
+      pickNumber = lockedDraft.currentPickNumber!;
 
-    // Add player to roster
-    await applyOwnershipTransition(
-      tx,
-      leagueId,
-      playerId,
-      { to: "rostered", managerId, acquiredVia: "redraft" },
-      now
-    );
-
-    // Conditional drop
-    if (dropPlayerId) {
+      // Add player to roster
       await applyOwnershipTransition(
         tx,
         leagueId,
-        dropPlayerId,
-        {
-          to: "on_waivers",
-          dropReason: "manager_drop",
-          droppedByManagerId: managerId,
-          eligibleAt: new Date(now.getTime() + 24 * 60 * 60 * 1000),
-        },
+        playerId,
+        { to: "rostered", managerId, acquiredVia: "redraft" },
         now
       );
-    }
 
-    // Record the pick
-    await tx.insert(draftPicks).values({
-      draftId: lockedDraft.id,
-      pickNumber,
-      managerId,
-      playerId,
-      droppedPlayerId: dropPlayerId ?? null,
-      clockExpired: false,
+      // Conditional drop
+      if (dropPlayerId) {
+        await applyOwnershipTransition(
+          tx,
+          leagueId,
+          dropPlayerId,
+          {
+            to: "on_waivers",
+            dropReason: "manager_drop",
+            droppedByManagerId: managerId,
+            eligibleAt: new Date(now.getTime() + 24 * 60 * 60 * 1000),
+          },
+          now
+        );
+      }
+
+      // Record the pick
+      await tx.insert(draftPicks).values({
+        draftId: lockedDraft.id,
+        pickNumber,
+        managerId,
+        playerId,
+        droppedPlayerId: dropPlayerId ?? null,
+        clockExpired: false,
+      });
+
+      // Advance or complete
+      const entries = await getDraftOrderEntries(lockedDraft.id);
+      const nextPickNumber = pickNumber + 1;
+      const nextManager = computeNextPicker(nextPickNumber, entries);
+
+      if (nextManager === null) {
+        isComplete = true;
+        await tx
+          .update(drafts)
+          .set({
+            status: "complete",
+            currentPickNumber: null,
+            currentPickStartedAt: null,
+            currentPickDeadline: null,
+            completedAt: now,
+            updatedAt: now,
+          })
+          .where(eq(drafts.id, lockedDraft.id));
+      } else {
+        const nextDeadline = new Date(
+          now.getTime() + REDRAFT_PICK_CLOCK_SECONDS * 1000
+        );
+        await tx
+          .update(drafts)
+          .set({
+            currentPickNumber: nextPickNumber,
+            currentPickStartedAt: now,
+            currentPickDeadline: nextDeadline,
+            updatedAt: now,
+          })
+          .where(eq(drafts.id, lockedDraft.id));
+      }
     });
-
-    // Advance or complete
-    const entries = await getDraftOrderEntries(lockedDraft.id);
-    const nextPickNumber = pickNumber + 1;
-    const nextManager = computeNextPicker(nextPickNumber, entries);
-
-    if (nextManager === null) {
-      isComplete = true;
-      await tx
-        .update(drafts)
-        .set({
-          status: "complete",
-          currentPickNumber: null,
-          currentPickStartedAt: null,
-          currentPickDeadline: null,
-          completedAt: now,
-          updatedAt: now,
-        })
-        .where(eq(drafts.id, lockedDraft.id));
-    } else {
-      const nextDeadline = new Date(
-        now.getTime() + REDRAFT_PICK_CLOCK_SECONDS * 1000
-      );
-      await tx
-        .update(drafts)
-        .set({
-          currentPickNumber: nextPickNumber,
-          currentPickStartedAt: now,
-          currentPickDeadline: nextDeadline,
-          updatedAt: now,
-        })
-        .where(eq(drafts.id, lockedDraft.id));
-    }
-  });
+  } catch (err) {
+    if (isUniqueViolation(err)) return { pickNumber: 0, isFinalPick: false };
+    throw err;
+  }
 
   return { pickNumber, isFinalPick: isComplete };
 }
@@ -746,75 +753,83 @@ async function advancePick(
   let pickNumber = 0;
   let isComplete = false;
 
-  await db.transaction(async (tx) => {
-    const [lockedDraft] = await tx
-      .select()
-      .from(drafts)
-      .where(and(eq(drafts.leagueId, leagueId), eq(drafts.type, "redraft")))
-      .for("update")
-      .limit(1);
+  try {
+    await db.transaction(async (tx) => {
+      const [lockedDraft] = await tx
+        .select()
+        .from(drafts)
+        .where(and(eq(drafts.leagueId, leagueId), eq(drafts.type, "redraft")))
+        .for("update")
+        .limit(1);
 
-    if (!lockedDraft || lockedDraft.status !== "active") return;
-    if (lockedDraft.currentPickNumber !== state.draft.currentPickNumber) return;
+      if (!lockedDraft || lockedDraft.status !== "active") return;
+      if (lockedDraft.currentPickNumber !== state.draft.currentPickNumber) return;
 
-    // Verify still expired under lock
-    const deadline = lockedDraft.currentPickDeadline;
-    if (deadline && now <= deadline) return;
+      // Verify still expired under lock
+      const deadline = lockedDraft.currentPickDeadline;
+      if (deadline && now <= deadline) return;
 
-    pickNumber = lockedDraft.currentPickNumber!;
-    const managerId = state.onTheClockManagerId!;
+      pickNumber = lockedDraft.currentPickNumber!;
+      const managerId = state.onTheClockManagerId!;
 
-    if (autoPickPlayerId) {
-      await applyOwnershipTransition(
-        tx,
-        leagueId,
-        autoPickPlayerId,
-        { to: "rostered", managerId, acquiredVia: "redraft" },
-        now
-      );
+      if (autoPickPlayerId) {
+        await applyOwnershipTransition(
+          tx,
+          leagueId,
+          autoPickPlayerId,
+          { to: "rostered", managerId, acquiredVia: "redraft" },
+          now
+        );
 
-      await tx.insert(draftPicks).values({
-        draftId: lockedDraft.id,
-        pickNumber,
-        managerId,
-        playerId: autoPickPlayerId,
-        droppedPlayerId: null,
-        clockExpired: true,
-      });
-    }
-    // Skip: no pick row inserted — manager just loses their turn
+        await tx.insert(draftPicks).values({
+          draftId: lockedDraft.id,
+          pickNumber,
+          managerId,
+          playerId: autoPickPlayerId,
+          droppedPlayerId: null,
+          clockExpired: true,
+        });
+      }
+      // Skip: no pick row inserted — manager just loses their turn
 
-    const entries = await getDraftOrderEntries(lockedDraft.id);
-    const nextManager = computeNextPicker(pickNumber + 1, entries);
+      const entries = await getDraftOrderEntries(lockedDraft.id);
+      const nextManager = computeNextPicker(pickNumber + 1, entries);
 
-    if (nextManager === null) {
-      isComplete = true;
-      await tx
-        .update(drafts)
-        .set({
-          status: "complete",
-          currentPickNumber: null,
-          currentPickStartedAt: null,
-          currentPickDeadline: null,
-          completedAt: now,
-          updatedAt: now,
-        })
-        .where(eq(drafts.id, lockedDraft.id));
+      if (nextManager === null) {
+        isComplete = true;
+        await tx
+          .update(drafts)
+          .set({
+            status: "complete",
+            currentPickNumber: null,
+            currentPickStartedAt: null,
+            currentPickDeadline: null,
+            completedAt: now,
+            updatedAt: now,
+          })
+          .where(eq(drafts.id, lockedDraft.id));
+      } else {
+        const nextDeadline = new Date(
+          now.getTime() + REDRAFT_PICK_CLOCK_SECONDS * 1000
+        );
+        await tx
+          .update(drafts)
+          .set({
+            currentPickNumber: pickNumber + 1,
+            currentPickStartedAt: now,
+            currentPickDeadline: nextDeadline,
+            updatedAt: now,
+          })
+          .where(eq(drafts.id, lockedDraft.id));
+      }
+    });
+  } catch (err) {
+    if (isUniqueViolation(err)) {
+      pickNumber = 0; // concurrent resolution won
     } else {
-      const nextDeadline = new Date(
-        now.getTime() + REDRAFT_PICK_CLOCK_SECONDS * 1000
-      );
-      await tx
-        .update(drafts)
-        .set({
-          currentPickNumber: pickNumber + 1,
-          currentPickStartedAt: now,
-          currentPickDeadline: nextDeadline,
-          updatedAt: now,
-        })
-        .where(eq(drafts.id, lockedDraft.id));
+      throw err;
     }
-  });
+  }
 
   if (isComplete || pickNumber === 0) {
     // pickNumber=0 means concurrent resolution won the lock

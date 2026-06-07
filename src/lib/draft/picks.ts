@@ -18,6 +18,10 @@ const POSITION_MAX: Record<string, number> = {
   FWD: 3,
 };
 
+function isUniqueViolation(err: unknown): boolean {
+  return typeof err === "object" && err !== null && (err as { code?: string }).code === "23505";
+}
+
 export async function submitPick(args: {
   leagueId: string;
   draftType: "initial" | "redraft";
@@ -121,64 +125,71 @@ export async function submitPick(args: {
   const isFinalPick = pickNumber === totalPicks;
 
   // 8. Transactional write — FOR UPDATE on drafts prevents concurrent double-picks
-  await db.transaction(async (tx) => {
-    const [lockedDraft] = await tx
-      .select()
-      .from(drafts)
-      .where(and(eq(drafts.leagueId, args.leagueId), eq(drafts.type, "initial")))
-      .for("update")
-      .limit(1);
+  let alreadyTaken = false;
+  try {
+    await db.transaction(async (tx) => {
+      const [lockedDraft] = await tx
+        .select()
+        .from(drafts)
+        .where(and(eq(drafts.leagueId, args.leagueId), eq(drafts.type, "initial")))
+        .for("update")
+        .limit(1);
 
-    if (!lockedDraft || lockedDraft.status !== "active") {
-      throw new Error("Draft is no longer active.");
-    }
-    if (lockedDraft.currentPickNumber !== pickNumber) {
-      throw new Error(
-        `Pick number mismatch: expected ${pickNumber} but draft is now at ${lockedDraft.currentPickNumber}. Another pick may have been submitted concurrently.`
+      if (!lockedDraft || lockedDraft.status !== "active") {
+        throw new Error("Draft is no longer active.");
+      }
+      if (lockedDraft.currentPickNumber !== pickNumber) {
+        alreadyTaken = true;
+        return; // concurrent pick won — don't throw, let caller see pickNumber=0
+      }
+
+      await tx.insert(draftPicks).values({
+        draftId: lockedDraft.id,
+        pickNumber,
+        managerId: args.managerId,
+        playerId: args.playerId,
+        droppedPlayerId: null,
+        clockExpired,
+      });
+
+      await applyOwnershipTransition(
+        tx,
+        args.leagueId,
+        args.playerId,
+        { to: "rostered", managerId: args.managerId, acquiredVia: "initial_draft" },
+        now,
       );
-    }
 
-    await tx.insert(draftPicks).values({
-      draftId: lockedDraft.id,
-      pickNumber,
-      managerId: args.managerId,
-      playerId: args.playerId,
-      droppedPlayerId: null,
-      clockExpired,
+      if (isFinalPick) {
+        await tx
+          .update(drafts)
+          .set({
+            status: "complete",
+            currentPickNumber: null,
+            currentPickStartedAt: null,
+            completedAt: now,
+            updatedAt: now,
+          })
+          .where(eq(drafts.id, lockedDraft.id));
+        // leagues.status stays 'drafting' — it advances to 'group_stage' via a
+        // separate cron/event when the group stage actually begins.
+      } else {
+        await tx
+          .update(drafts)
+          .set({
+            currentPickNumber: pickNumber + 1,
+            currentPickStartedAt: now,
+            updatedAt: now,
+          })
+          .where(eq(drafts.id, lockedDraft.id));
+      }
     });
+  } catch (err) {
+    if (isUniqueViolation(err)) return { pickNumber: 0, isFinalPick: false };
+    throw err;
+  }
 
-    await applyOwnershipTransition(
-      tx,
-      args.leagueId,
-      args.playerId,
-      { to: "rostered", managerId: args.managerId, acquiredVia: "initial_draft" },
-      now,
-    );
-
-    if (isFinalPick) {
-      await tx
-        .update(drafts)
-        .set({
-          status: "complete",
-          currentPickNumber: null,
-          currentPickStartedAt: null,
-          completedAt: now,
-          updatedAt: now,
-        })
-        .where(eq(drafts.id, lockedDraft.id));
-      // leagues.status stays 'drafting' — it advances to 'group_stage' via a
-      // separate cron/event when the group stage actually begins.
-    } else {
-      await tx
-        .update(drafts)
-        .set({
-          currentPickNumber: pickNumber + 1,
-          currentPickStartedAt: now,
-          updatedAt: now,
-        })
-        .where(eq(drafts.id, lockedDraft.id));
-    }
-  });
+  if (alreadyTaken) return { pickNumber: 0, isFinalPick: false };
 
   if (isFinalPick) {
     runGroupDraw(args.leagueId).catch((err) => {

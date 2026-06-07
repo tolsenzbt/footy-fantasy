@@ -481,7 +481,7 @@ describe("final pick", () => {
 });
 
 describe("concurrency — pick number mismatch inside transaction", () => {
-  it("throws a clear error when the draft has already advanced past the expected pick", async () => {
+  it("returns pickNumber=0 when the draft has already advanced past the expected pick", async () => {
     // getDraftState sees pick 5, but by the time the tx locks the row,
     // another caller has already advanced it to pick 6.
     mockGetDraftState.mockResolvedValue({
@@ -497,6 +497,39 @@ describe("concurrency — pick number mismatch inside transaction", () => {
       fn(makeTxMock(advancedDraft))
     );
 
+    const result = await submitPick({
+      leagueId: LEAGUE_ID,
+      draftType: "initial",
+      managerId: MANAGER_ID,
+      playerId: PLAYER_ID,
+    });
+    expect(result).toEqual({ pickNumber: 0, isFinalPick: false });
+  });
+
+  it("returns pickNumber=0 when the unique constraint fires (23505 — both reads were stale)", async () => {
+    mockGetDraftState.mockResolvedValue(activeState);
+    setupSelects();
+
+    // Simulate the INSERT failing with a Postgres unique-constraint violation.
+    const uniqueErr = Object.assign(new Error("duplicate key value"), { code: "23505" });
+    mockDb.transaction.mockImplementationOnce(async () => { throw uniqueErr; });
+
+    const result = await submitPick({
+      leagueId: LEAGUE_ID,
+      draftType: "initial",
+      managerId: MANAGER_ID,
+      playerId: PLAYER_ID,
+    });
+    expect(result).toEqual({ pickNumber: 0, isFinalPick: false });
+  });
+
+  it("re-throws non-23505 errors from the transaction", async () => {
+    mockGetDraftState.mockResolvedValue(activeState);
+    setupSelects();
+
+    const dbErr = new Error("connection reset");
+    mockDb.transaction.mockImplementationOnce(async () => { throw dbErr; });
+
     await expect(
       submitPick({
         leagueId: LEAGUE_ID,
@@ -504,6 +537,6 @@ describe("concurrency — pick number mismatch inside transaction", () => {
         managerId: MANAGER_ID,
         playerId: PLAYER_ID,
       })
-    ).rejects.toThrow("mismatch");
+    ).rejects.toThrow("connection reset");
   });
 });
