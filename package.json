@@ -18,6 +18,11 @@
     "db:submit-pick": "tsx --tsconfig tsconfig.scripts.json --env-file=.env.local scripts/submit-pick.ts",
     "db:auto-draft": "tsx --tsconfig tsconfig.scripts.json --env-file=.env.local scripts/auto-draft.ts",
     "db:run-group-draw": "tsx --tsconfig tsconfig.scripts.json --env-file=.env.local scripts/run-group-draw.ts",
+    "db:init-draft-ownership": "tsx --tsconfig tsconfig.scripts.json --env-file=.env.local scripts/init-draft-ownership.ts",
+    "db:val-md1-ingest": "tsx --tsconfig tsconfig.scripts.json --env-file=.env.local scripts/val-md1-ingest.ts",
+    "db:val-md2-ingest": "tsx --tsconfig tsconfig.scripts.json --env-file=.env.local scripts/val-md2-ingest.ts",
+    "db:val-md3-ingest": "tsx --tsconfig tsconfig.scripts.json --env-file=.env.local scripts/val-md3-ingest.ts",
+    "db:val-4a-knockout-fixtures": "tsx --tsconfig tsconfig.scripts.json --env-file=.env.local scripts/val-4a-knockout-fixtures.ts",
     "db:set-lineup": "tsx --tsconfig tsconfig.scripts.json --env-file=.env.local scripts/set-lineup.ts",
     "db:get-lineup": "tsx --tsconfig tsconfig.scripts.json --env-file=.env.local scripts/get-lineup.ts",
     "test": "vitest run"
