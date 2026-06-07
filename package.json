@@ -26,6 +26,7 @@
     "db:val-4b-redraft": "tsx --tsconfig tsconfig.scripts.json --env-file=.env.local scripts/val-4b-redraft.ts",
     "db:set-lineup": "tsx --tsconfig tsconfig.scripts.json --env-file=.env.local scripts/set-lineup.ts",
     "db:get-lineup": "tsx --tsconfig tsconfig.scripts.json --env-file=.env.local scripts/get-lineup.ts",
+    "db:val-4c-ii": "tsx --tsconfig tsconfig.scripts.json --env-file=.env.local scripts/val-4c-ii.ts",
     "test": "vitest run"
   },
   "dependencies": {
