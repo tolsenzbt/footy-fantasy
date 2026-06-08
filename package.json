@@ -27,6 +27,9 @@
     "db:set-lineup": "tsx --tsconfig tsconfig.scripts.json --env-file=.env.local scripts/set-lineup.ts",
     "db:get-lineup": "tsx --tsconfig tsconfig.scripts.json --env-file=.env.local scripts/get-lineup.ts",
     "db:val-4c-ii": "tsx --tsconfig tsconfig.scripts.json --env-file=.env.local scripts/val-4c-ii.ts",
+    "db:teardown": "tsx --tsconfig tsconfig.scripts.json --env-file=.env.local scripts/teardown.ts",
+    "db:fetch-wc-squads": "tsx --tsconfig tsconfig.scripts.json --env-file=.env.local scripts/fetch-wc-squads.ts",
+    "db:reconcile-squads": "tsx --tsconfig tsconfig.scripts.json --env-file=.env.local scripts/reconcile-squads.ts",
     "test": "vitest run"
   },
   "dependencies": {
