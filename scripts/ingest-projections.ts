@@ -77,7 +77,8 @@ const NAME_OVERRIDES: Record<string, string> = {
   "ESP:Alejandro Grimaldo": "Álex Grimaldo",     // different given name form
   "KSA:Nawaf Bu Washl":     "Nawaf Boushal",     // word-split vs. fused
   "UZB:Farruh Sayfiyev":    "Farrukh Sayfiev",  // h vs. kh transliteration
-  "MEX:Jose Rangel":        "Raúl Rangel",       // RotoWire wrong first name; Mexico's only Rangel (GK)
+  "MEX:Jose Rangel":        "Raúl Rangel",       // RotoWire wrong first name; Mexico's only Rangel (GK),
+  "JOR:Mohammad Abualnadi": "Mo Abualnadi"
 };
 
 // ── Name normalization ────────────────────────────────────────────────────────
