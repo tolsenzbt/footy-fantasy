@@ -64,6 +64,20 @@ const CSV_CODE_TO_NATION_NAME: Record<string, string> = {
   UZB: "Uzbekistan",
 };
 
+// ── Explicit name overrides ───────────────────────────────────────────────────
+// Applied after the rule-based matcher for confirmed pairs that exceed algorithmic reach
+// (mononyms, nickname↔formal-name, word-split variants). Key: "CSV_CODE:CSV name".
+// Leave null/omit for genuine non-matches (different player, not in squad, etc.).
+const NAME_OVERRIDES: Record<string, string> = {
+  "MAR:Bono":               "Yassine Bounou",    // mononym
+  "MAR:Ez Abde":            "Abde Ezzalzouli",   // "ez" too short for prefix rule
+  "SCO:Andrew Robertson":   "Andy Robertson",    // formal↔nickname
+  "AUS:Cameron Devlin":     "Cammy Devlin",      // formal↔nickname
+  "ESP:Alejandro Grimaldo": "Álex Grimaldo",     // different given name form
+  "KSA:Nawaf Bu Washl":     "Nawaf Boushal",     // word-split vs. fused
+  "UZB:Farruh Sayfiyev":    "Farrukh Sayfiev",  // h vs. kh transliteration
+};
+
 // ── Name normalization ────────────────────────────────────────────────────────
 function decodeHtml(s: string): string {
   return s
@@ -507,23 +521,7 @@ async function main() {
 
     const result = matchPlayer(row, nationPlayers);
 
-    if (result === null) {
-      rejected.push({
-        csvName: row.name,
-        teamCode: row.teamCode,
-        pos: row.pos,
-        candidates: [],
-        reason: "no match",
-      });
-    } else if (result.kind === "ambiguous") {
-      rejected.push({
-        csvName: row.name,
-        teamCode: row.teamCode,
-        pos: row.pos,
-        candidates: result.candidates,
-        reason: result.reason,
-      });
-    } else {
+    if (result?.kind === "match") {
       matched.push({
         csvRow: row,
         playerId: result.player.id,
@@ -532,7 +530,38 @@ async function main() {
         nationName: nationNameById.get(nationId) ?? row.teamCode,
         step: result.step,
       });
+      continue;
     }
+
+    // Rule-based match failed — try explicit override map
+    const overrideKey = `${row.teamCode}:${row.name}`;
+    const overrideName = NAME_OVERRIDES[overrideKey];
+    if (overrideName !== undefined) {
+      const target = nationPlayers.find(
+        (p) => normalizeName(p.name) === normalizeName(overrideName)
+      );
+      if (target) {
+        matched.push({
+          csvRow: row,
+          playerId: target.id,
+          dbPosition: target.position as FantasyPosition,
+          dbName: target.name,
+          nationName: nationNameById.get(nationId) ?? row.teamCode,
+          step: "override",
+        });
+        continue;
+      }
+      console.warn(`  ⚠ override target not found in DB: "${overrideKey}" → "${overrideName}"`);
+    }
+
+    // Still unmatched
+    rejected.push({
+      csvName: row.name,
+      teamCode: row.teamCode,
+      pos: row.pos,
+      candidates: result?.kind === "ambiguous" ? result.candidates : [],
+      reason: result?.kind === "ambiguous" ? result.reason : "no match",
+    });
   }
 
   console.log(`Matched: ${matched.length} / ${rows.length}`);
@@ -679,10 +708,13 @@ async function main() {
   console.log("\n════════════════════════════════════════");
   console.log("PROJECTIONS INGEST REPORT");
   console.log("════════════════════════════════════════");
+  const overrideCount = matched.filter((m) => m.step === "override").length;
   console.log(`Codes mapped:       ${codeToNationId.size}/48`);
   console.log(
     `CSV rows:           ${rows.length} total | ${matched.length} matched | ${rejected.length} rejected`
   );
+  console.log(`  → rule-based:     ${matched.length - overrideCount}`);
+  console.log(`  → overrides:      ${overrideCount}`);
   console.log(`Players scored:     ${N}`);
   console.log(`O-Rank range:       1..${N}`);
 
