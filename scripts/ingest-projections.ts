@@ -12,6 +12,14 @@ import {
 } from "../src/db/schema";
 import { sql } from "drizzle-orm";
 import { scorePlayer, type FantasyPosition } from "../src/lib/scoring/engine";
+import {
+  normalizeName,
+  matchPlayerByName,
+  chunkArray,
+  type DbPlayer,
+  type MatchSuccess,
+  type MatchAmbiguous,
+} from "./lib/name-matcher";
 
 // ── CSV code → nation name in DB ─────────────────────────────────────────────
 const CSV_CODE_TO_NATION_NAME: Record<string, string> = {
@@ -81,153 +89,6 @@ const NAME_OVERRIDES: Record<string, string> = {
   "JOR:Mohammad Abualnadi": "Mo Abualnadi"
 };
 
-// ── Name normalization ────────────────────────────────────────────────────────
-function decodeHtml(s: string): string {
-  return s
-    .replace(/&aacute;/gi, "á")
-    .replace(/&eacute;/gi, "é")
-    .replace(/&iacute;/gi, "í")
-    .replace(/&oacute;/gi, "ó")
-    .replace(/&uacute;/gi, "ú")
-    .replace(/&ntilde;/gi, "ñ")
-    .replace(/&agrave;/gi, "à")
-    .replace(/&egrave;/gi, "è")
-    .replace(/&auml;/gi, "ä")
-    .replace(/&ouml;/gi, "ö")
-    .replace(/&uuml;/gi, "ü")
-    .replace(/&amp;/gi, "&");
-}
-
-function normalizeName(name: string): string {
-  return decodeHtml(name)
-    .replace(/ı/g, "i")     // ı (Turkish dotless i, U+0131) → i
-    .replace(/İ/g, "I")     // İ (Turkish dotted I, U+0130) → I (NFD will add dot, strip below)
-    .replace(/ß/g, "ss")          // German sharp s
-    .replace(/[Øø]/g, "o")        // Scandinavian ø/Ø (no NFD decomposition)
-    .replace(/[Ææ]/g, "ae")       // Scandinavian æ/Æ (no NFD decomposition)
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "") // strip combining diacritical marks
-    .toLowerCase()
-    .replace(/[-‑‐]/g, " ") // hyphen variants → space
-    .replace(/\./g, "")              // strip periods (Jr., etc.)
-    .replace(/[''`‘’]/g, "") // strip apostrophes
-    .replace(/\s+/g, " ")            // collapse whitespace
-    .trim();
-}
-
-// Secondary key: transliteration folding for spelling-variant matching.
-// Applied to the output of normalizeName.
-function translitKey(norm: string): string {
-  let s = norm;
-  // Digraph folding (applied first, before y-rules and double-collapse)
-  s = s.replace(/kh/g, "k");
-  s = s.replace(/gh/g, "g");
-  s = s.replace(/ph/g, "f");
-  s = s.replace(/ck/g, "k");
-  // c → k (consistent on both sides; handles zico/ziko, conor/connor post-double-fold)
-  s = s.replace(/c/g, "k");
-  // y rules applied BEFORE vowel-digraph folding so "sergeyev" → y-removal → "sergeev" → ee→i
-  // y between two vowels: remove (sergeyev → sergeev, nasrullayev → nasrullaev)
-  s = s.replace(/([aeiou])y([aeiou])/g, "$1$2");
-  // y mid-word not between two vowels: → i (zrayq → zraiq)
-  s = s.replace(/(?<=\w)y(?=\w)/g, "i");
-  // y at word end: → i (fakhoury/fakhouri, hamdy/hamdi)
-  s = s.replace(/y\b/g, "i");
-  // Vowel digraph folding (after y-rules)
-  s = s.replace(/oo/g, "u");
-  s = s.replace(/ou/g, "u");
-  s = s.replace(/ee/g, "i");
-  s = s.replace(/eo/g, "u");  // Korean: hyeon → hyun
-  s = s.replace(/aw/g, "a");  // Arabic diphthong: dawoud → daoud (then ou→u = daud)
-  // w → v (after aw→a; handles Central Asian w-spellings)
-  s = s.replace(/w/g, "v");
-  // Universal double-letter collapse (vowels AND consonants: aa→a, mm→m, etc.)
-  s = s.replace(/(.)\1+/g, "$1");
-  // Strip standalone Arabic/patronymic particles
-  s = s.replace(/\b(bin|bint|abu|ibn|al|el|abd)\b/g, "");
-  // Normalize spaces
-  s = s.replace(/\s+/g, " ").trim();
-  return s;
-}
-
-// Last-resort key: vowel-stripped consonant skeleton.
-// Used only for long names (≥ 3 tokens) where translit still fails.
-function skeletonKey(s: string): string {
-  return s
-    .replace(/[aeiou]/g, "")  // strip all vowels
-    .replace(/(.)\1+/g, "$1") // collapse repeated chars
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-// ── Fuzzy token matching ──────────────────────────────────────────────────────
-// a matches b if: exact, OR one is a prefix of other (min len 3, ≥40% of longer),
-// OR one is a suffix of other (min len 4). The 40% ratio prevents short particles
-// like "abu" (3) from prefix-matching "abualnadi" (9): 3 < ceil(9*0.4)=4 → reject.
-// "nur" (3) prefix of "nuredin" (7) still passes: 3 ≥ ceil(7*0.4)=3.
-function fuzzyTokenMatch(a: string, b: string): boolean {
-  if (a === b) return true;
-  const [shorter, longer] = a.length <= b.length ? [a, b] : [b, a];
-  if (shorter.length < 3) return false;
-  // Prefix: also require shorter ≥ 40% of longer to avoid particle-prefix collisions
-  if (longer.startsWith(shorter) && shorter.length >= Math.ceil(longer.length * 0.4)) return true;
-  if (shorter.length >= 4 && longer.endsWith(shorter)) return true; // suffix
-  return false;
-}
-
-// All tokens in `smaller` fuzzy-match some token in `larger`
-function fuzzySubset(smaller: string[], larger: string[]): boolean {
-  return smaller.every((st) => larger.some((lt) => fuzzyTokenMatch(st, lt)));
-}
-
-// All tokens in `smaller` exactly appear in `larger`
-function exactSubset(smaller: string[], larger: string[]): boolean {
-  return smaller.every((st) => larger.includes(st));
-}
-
-// Skeleton subset: exact OR prefix (min len 2). Used in step 7 for same-token-count name pairs
-// where first names differ only by suffix (andy/andrew, cammy/cameron).
-function skelSubset(smaller: string[], larger: string[]): boolean {
-  return smaller.every((st) =>
-    larger.some((lt) => {
-      if (st === lt) return true;
-      const [srt, lng] = st.length <= lt.length ? [st, lt] : [lt, st];
-      return srt.length >= 2 && lng.startsWith(srt);
-    })
-  );
-}
-
-// Token match allowing skeleton fallback: fuzzy OR identical vowel-stripped skeleton.
-// Skeleton path requires ≥2 shared bigrams to prevent collisions like "bono"/"bunu" (both→"bn")
-// from matching when they're structurally unrelated words.
-function fuzzyOrSkelTokenMatch(a: string, b: string): boolean {
-  if (fuzzyTokenMatch(a, b)) return true;
-  const sA = skeletonKey(a);
-  const sB = skeletonKey(b);
-  if (sA !== sB || sA.length === 0) return false;
-  // Count shared bigrams in the original tokens
-  const bigramsOf = (s: string): Set<string> => {
-    const set = new Set<string>();
-    for (let i = 0; i + 1 < s.length; i++) set.add(s[i] + s[i + 1]);
-    return set;
-  };
-  const ba = bigramsOf(a);
-  const bb = bigramsOf(b);
-  let shared = 0;
-  for (const bg of ba) if (bb.has(bg)) shared++;
-  return shared >= 2;
-}
-
-function fuzzyOrSkelSubset(smaller: string[], larger: string[]): boolean {
-  return smaller.every((st) => larger.some((lt) => fuzzyOrSkelTokenMatch(st, lt)));
-}
-
-// ── Batch helper ─────────────────────────────────────────────────────────────
-function chunkArray<T>(arr: T[], size: number): T[][] {
-  const out: T[][] = [];
-  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
-  return out;
-}
 
 // ── CSV parsing ───────────────────────────────────────────────────────────────
 function parseCSVLine(line: string): string[] {
@@ -327,135 +188,6 @@ function csvPosToDbPositions(csvPos: string): FantasyPosition[] {
 }
 
 // ── Matching pipeline ─────────────────────────────────────────────────────────
-type DbPlayer = {
-  id: string;
-  name: string;
-  nationId: string;
-  position: string;
-};
-
-interface MatchSuccess {
-  kind: "match";
-  player: DbPlayer;
-  step: string;
-}
-interface MatchAmbiguous {
-  kind: "ambiguous";
-  reason: string;
-  candidates: string[];
-}
-
-function resolveWithPos(
-  candidates: DbPlayer[],
-  csvPositions: FantasyPosition[],
-  step: string
-): MatchSuccess | MatchAmbiguous | null {
-  if (candidates.length === 0) return null;
-  if (candidates.length === 1) return { kind: "match", player: candidates[0], step };
-  const filtered = candidates.filter((p) =>
-    csvPositions.includes(p.position as FantasyPosition)
-  );
-  if (filtered.length === 1) return { kind: "match", player: filtered[0], step };
-  if (filtered.length > 1)
-    return {
-      kind: "ambiguous",
-      reason: `${step}: ${filtered.length} pos-filtered matches`,
-      candidates: filtered.map((p) => p.name),
-    };
-  // position filter wiped everyone — position mismatch, but single original candidate
-  return { kind: "match", player: candidates[0], step };
-}
-
-function matchPlayer(
-  row: CsvRow,
-  nationPlayers: DbPlayer[]
-): MatchSuccess | MatchAmbiguous | null {
-  const csvPositions = csvPosToDbPositions(row.pos);
-  const csvNorm = normalizeName(row.name);
-  const csvTranslit = translitKey(csvNorm);
-  const csvTokensNorm = csvNorm.split(/\s+/).filter(Boolean);
-  const csvTokensTranslit = csvTranslit.split(/\s+/).filter(Boolean);
-
-  // Step 1: Exact normalized
-  {
-    const cands = nationPlayers.filter((p) => normalizeName(p.name) === csvNorm);
-    const r = resolveWithPos(cands, csvPositions, "exact-norm");
-    if (r) return r;
-  }
-
-  // Step 2: Token-sorted normalized
-  {
-    const csvSort = [...csvTokensNorm].sort().join(" ");
-    const cands = nationPlayers.filter((p) => {
-      const dbNorm = normalizeName(p.name);
-      return dbNorm.split(/\s+/).filter(Boolean).sort().join(" ") === csvSort;
-    });
-    const r = resolveWithPos(cands, csvPositions, "token-sort-norm");
-    if (r) return r;
-  }
-
-  // Step 3: Exact translit
-  {
-    const cands = nationPlayers.filter(
-      (p) => translitKey(normalizeName(p.name)) === csvTranslit
-    );
-    const r = resolveWithPos(cands, csvPositions, "exact-translit");
-    if (r) return r;
-  }
-
-  // Step 4: Token-sorted translit
-  {
-    const csvSort = [...csvTokensTranslit].sort().join(" ");
-    const cands = nationPlayers.filter((p) => {
-      const dbT = translitKey(normalizeName(p.name)).split(/\s+/).filter(Boolean);
-      return [...dbT].sort().join(" ") === csvSort;
-    });
-    const r = resolveWithPos(cands, csvPositions, "token-sort-translit");
-    if (r) return r;
-  }
-
-  // Step 5: Fuzzy subset on normalized tokens
-  {
-    const cands = nationPlayers.filter((p) => {
-      const dbT = normalizeName(p.name).split(/\s+/).filter(Boolean);
-      return fuzzySubset(csvTokensNorm, dbT) || fuzzySubset(dbT, csvTokensNorm);
-    });
-    const r = resolveWithPos(cands, csvPositions, "subset-norm");
-    if (r) return r;
-  }
-
-  // Step 6: Fuzzy+skeleton subset on translit tokens
-  // fuzzyOrSkelSubset allows a token to match via fuzzy prefix/suffix OR identical vowel-stripped skeleton,
-  // catching vowel-variant pairs like atiah/ateah, ehsan/ihsan, amanov/amonov.
-  {
-    const cands = nationPlayers.filter((p) => {
-      const dbT = translitKey(normalizeName(p.name)).split(/\s+/).filter(Boolean);
-      return fuzzyOrSkelSubset(csvTokensTranslit, dbT) || fuzzyOrSkelSubset(dbT, csvTokensTranslit);
-    });
-    const r = resolveWithPos(cands, csvPositions, "subset-translit");
-    if (r) return r;
-  }
-
-  // Step 7: Skeleton subset — handles nickname/formal-name pairs with same token count
-  // (andy/andrew, cammy/cameron). Equal-token-count guard prevents mononyms from grabbing
-  // longer DB names (e.g. "Bono"→1 token can't match "Yassine Bounou"→2 tokens).
-  {
-    const csvSkelTokens = skeletonKey(csvTranslit).split(/\s+/).filter(Boolean);
-    if (csvSkelTokens.length >= 2) {
-      const cands = nationPlayers.filter((p) => {
-        const dbSkelTokens = skeletonKey(translitKey(normalizeName(p.name)))
-          .split(/\s+/)
-          .filter(Boolean);
-        if (dbSkelTokens.length !== csvSkelTokens.length) return false;
-        return skelSubset(csvSkelTokens, dbSkelTokens) || skelSubset(dbSkelTokens, csvSkelTokens);
-      });
-      const r = resolveWithPos(cands, csvPositions, "subset-skeleton");
-      if (r) return r;
-    }
-  }
-
-  return null;
-}
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 async function main() {
@@ -533,7 +265,7 @@ async function main() {
     const nationId = codeToNationId.get(row.teamCode)!;
     const nationPlayers = playersByNation.get(nationId) ?? [];
 
-    const result = matchPlayer(row, nationPlayers);
+    const result = matchPlayerByName(row.name, csvPosToDbPositions(row.pos), nationPlayers);
 
     if (result?.kind === "match") {
       matched.push({
