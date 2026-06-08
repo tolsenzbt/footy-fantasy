@@ -10,6 +10,7 @@ import {
   playerProjections as playerProjectionsTable,
   playerRankings as playerRankingsTable,
 } from "../src/db/schema";
+import { sql } from "drizzle-orm";
 import { scorePlayer, type FantasyPosition } from "../src/lib/scoring/engine";
 
 // ── CSV code → nation name in DB ─────────────────────────────────────────────
@@ -76,6 +77,7 @@ const NAME_OVERRIDES: Record<string, string> = {
   "ESP:Alejandro Grimaldo": "Álex Grimaldo",     // different given name form
   "KSA:Nawaf Bu Washl":     "Nawaf Boushal",     // word-split vs. fused
   "UZB:Farruh Sayfiyev":    "Farrukh Sayfiev",  // h vs. kh transliteration
+  "MEX:Jose Rangel":        "Raúl Rangel",       // RotoWire wrong first name; Mexico's only Rangel (GK)
 };
 
 // ── Name normalization ────────────────────────────────────────────────────────
@@ -158,12 +160,16 @@ function skeletonKey(s: string): string {
 }
 
 // ── Fuzzy token matching ──────────────────────────────────────────────────────
-// a matches b if: exact, OR one is a prefix of other (min len 3), OR suffix (min len 4)
+// a matches b if: exact, OR one is a prefix of other (min len 3, ≥40% of longer),
+// OR one is a suffix of other (min len 4). The 40% ratio prevents short particles
+// like "abu" (3) from prefix-matching "abualnadi" (9): 3 < ceil(9*0.4)=4 → reject.
+// "nur" (3) prefix of "nuredin" (7) still passes: 3 ≥ ceil(7*0.4)=3.
 function fuzzyTokenMatch(a: string, b: string): boolean {
   if (a === b) return true;
   const [shorter, longer] = a.length <= b.length ? [a, b] : [b, a];
   if (shorter.length < 3) return false;
-  if (longer.startsWith(shorter)) return true;   // prefix
+  // Prefix: also require shorter ≥ 40% of longer to avoid particle-prefix collisions
+  if (longer.startsWith(shorter) && shorter.length >= Math.ceil(longer.length * 0.4)) return true;
   if (shorter.length >= 4 && longer.endsWith(shorter)) return true; // suffix
   return false;
 }
@@ -213,6 +219,13 @@ function fuzzyOrSkelTokenMatch(a: string, b: string): boolean {
 
 function fuzzyOrSkelSubset(smaller: string[], larger: string[]): boolean {
   return smaller.every((st) => larger.some((lt) => fuzzyOrSkelTokenMatch(st, lt)));
+}
+
+// ── Batch helper ─────────────────────────────────────────────────────────────
+function chunkArray<T>(arr: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
 }
 
 // ── CSV parsing ───────────────────────────────────────────────────────────────
@@ -567,11 +580,37 @@ async function main() {
   console.log(`Matched: ${matched.length} / ${rows.length}`);
   console.log(`Rejected: ${rejected.length}`);
 
-  // ── Step 4: Write player_projections ─────────────────────────────────────
+  // ── Collision guard: detect two CSV rows that resolved to the same player_id ─
+  {
+    const byId = new Map<string, Matched[]>();
+    for (const m of matched) {
+      const list = byId.get(m.playerId) ?? [];
+      list.push(m);
+      byId.set(m.playerId, list);
+    }
+    const collisions = [...byId.entries()].filter(([, ms]) => ms.length > 1);
+    if (collisions.length > 0) {
+      console.warn(`\n⚠ COLLISION: ${collisions.length} DB player(s) matched by multiple CSV rows:`);
+      for (const [, ms] of collisions) {
+        console.warn(`  DB "${ms[0].dbName}" (${ms[0].nationName}, ${ms[0].dbPosition}):`);
+        for (const m of ms) {
+          console.warn(`    - CSV "${m.csvRow.name}" (${m.csvRow.teamCode}/${m.csvRow.pos}) via ${m.step}`);
+        }
+      }
+    } else {
+      console.log("Collisions:  0 (all player_ids unique)");
+    }
+  }
+
+  // Deduplicate for writes: last occurrence per player_id wins (consistent with sequential upsert).
+  // Collisions are already surfaced above; extra rows are intentionally dropped from DB writes.
+  const matchedForWrite = [...new Map(matched.map((m) => [m.playerId, m])).values()];
+
+  // ── Step 4: Write player_projections (batched) ────────────────────────────
   console.log("\nWriting player_projections...");
-  for (const m of matched) {
+  const projRows = matchedForWrite.map((m) => {
     const r = m.csvRow;
-    const vals = {
+    return {
       playerId: m.playerId,
       minutes: String(r.minutes),
       goals: String(r.goals),
@@ -595,38 +634,40 @@ async function main() {
       yellowCards: String(r.yellowCards),
       redCards: String(r.redCards),
     };
+  });
+  for (const chunk of chunkArray(projRows, 200)) {
     await db
       .insert(playerProjectionsTable)
-      .values(vals)
+      .values(chunk)
       .onConflictDoUpdate({
         target: playerProjectionsTable.playerId,
         set: {
-          minutes: vals.minutes,
-          goals: vals.goals,
-          assists: vals.assists,
-          shots: vals.shots,
-          shotsOnGoal: vals.shotsOnGoal,
-          chancesCreated: vals.chancesCreated,
-          passes: vals.passes,
-          crosses: vals.crosses,
-          accurateCrosses: vals.accurateCrosses,
-          interceptions: vals.interceptions,
-          tackles: vals.tackles,
-          tacklesWon: vals.tacklesWon,
-          blocks: vals.blocks,
-          clearances: vals.clearances,
-          cleanSheets: vals.cleanSheets,
-          goalsConceded: vals.goalsConceded,
-          saves: vals.saves,
-          foulsSuffered: vals.foulsSuffered,
-          foulsCommitted: vals.foulsCommitted,
-          yellowCards: vals.yellowCards,
-          redCards: vals.redCards,
-          updatedAt: new Date(),
+          minutes:        sql`excluded.minutes`,
+          goals:          sql`excluded.goals`,
+          assists:        sql`excluded.assists`,
+          shots:          sql`excluded.shots`,
+          shotsOnGoal:    sql`excluded.shots_on_goal`,
+          chancesCreated: sql`excluded.chances_created`,
+          passes:         sql`excluded.passes`,
+          crosses:        sql`excluded.crosses`,
+          accurateCrosses:sql`excluded.accurate_crosses`,
+          interceptions:  sql`excluded.interceptions`,
+          tackles:        sql`excluded.tackles`,
+          tacklesWon:     sql`excluded.tackles_won`,
+          blocks:         sql`excluded.blocks`,
+          clearances:     sql`excluded.clearances`,
+          cleanSheets:    sql`excluded.clean_sheets`,
+          goalsConceded:  sql`excluded.goals_conceded`,
+          saves:          sql`excluded.saves`,
+          foulsSuffered:  sql`excluded.fouls_suffered`,
+          foulsCommitted: sql`excluded.fouls_committed`,
+          yellowCards:    sql`excluded.yellow_cards`,
+          redCards:       sql`excluded.red_cards`,
+          updatedAt:      sql`now()`,
         },
       });
   }
-  console.log(`Wrote ${matched.length} rows to player_projections.`);
+  console.log(`Wrote ${matchedForWrite.length} rows to player_projections.`);
 
   // ── Step 5: Score matched players via §6 engine ──────────────────────────
   interface ScoredEntry {
@@ -637,7 +678,7 @@ async function main() {
     projectedPoints: number;
   }
 
-  const scored: ScoredEntry[] = matched.map((m) => {
+  const scored: ScoredEntry[] = matchedForWrite.map((m) => {
     const r = m.csvRow;
     const pts = scorePlayer(
       {
@@ -677,27 +718,42 @@ async function main() {
   );
 
   console.log("\nWriting player_rankings...");
+  // Split into two groups: o_rank_overridden rows (skip oRank update) vs. normal rows.
+  const rankNormal: { playerId: string; projectedPoints: string; oRank: number }[] = [];
+  const rankOverridden: { playerId: string; projectedPoints: string }[] = [];
   for (let i = 0; i < scored.length; i++) {
     const s = scored[i];
-    const rank = i + 1;
-    const isOverridden = overriddenSet.has(s.playerId);
     const ptsStr = s.projectedPoints.toFixed(4);
-
-    if (isOverridden) {
-      await db
-        .insert(playerRankingsTable)
-        .values({ playerId: s.playerId, projectedPoints: ptsStr })
-        .onConflictDoUpdate({
-          target: playerRankingsTable.playerId,
-          set: { projectedPoints: ptsStr, updatedAt: new Date() },
-        });
+    if (overriddenSet.has(s.playerId)) {
+      rankOverridden.push({ playerId: s.playerId, projectedPoints: ptsStr });
     } else {
+      rankNormal.push({ playerId: s.playerId, projectedPoints: ptsStr, oRank: i + 1 });
+    }
+  }
+  for (const chunk of chunkArray(rankNormal, 200)) {
+    await db
+      .insert(playerRankingsTable)
+      .values(chunk)
+      .onConflictDoUpdate({
+        target: playerRankingsTable.playerId,
+        set: {
+          projectedPoints: sql`excluded.projected_points`,
+          oRank:           sql`excluded.o_rank`,
+          updatedAt:       sql`now()`,
+        },
+      });
+  }
+  if (rankOverridden.length > 0) {
+    for (const chunk of chunkArray(rankOverridden, 200)) {
       await db
         .insert(playerRankingsTable)
-        .values({ playerId: s.playerId, projectedPoints: ptsStr, oRank: rank })
+        .values(chunk)
         .onConflictDoUpdate({
           target: playerRankingsTable.playerId,
-          set: { projectedPoints: ptsStr, oRank: rank, updatedAt: new Date() },
+          set: {
+            projectedPoints: sql`excluded.projected_points`,
+            updatedAt:       sql`now()`,
+          },
         });
     }
   }
@@ -709,12 +765,16 @@ async function main() {
   console.log("PROJECTIONS INGEST REPORT");
   console.log("════════════════════════════════════════");
   const overrideCount = matched.filter((m) => m.step === "override").length;
+  const collisionDrop = matched.length - matchedForWrite.length;
   console.log(`Codes mapped:       ${codeToNationId.size}/48`);
   console.log(
     `CSV rows:           ${rows.length} total | ${matched.length} matched | ${rejected.length} rejected`
   );
   console.log(`  → rule-based:     ${matched.length - overrideCount}`);
   console.log(`  → overrides:      ${overrideCount}`);
+  if (collisionDrop > 0) {
+    console.log(`  → collision drops: ${collisionDrop} (see ⚠ above)`);
+  }
   console.log(`Players scored:     ${N}`);
   console.log(`O-Rank range:       1..${N}`);
 
