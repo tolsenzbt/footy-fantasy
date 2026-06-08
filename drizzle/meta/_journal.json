@@ -85,6 +85,13 @@
       "when": 1780921909546,
       "tag": "0011_player_position_rename_and_rankings",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1780929865745,
+      "tag": "0012_curly_agent_brand",
+      "breakpoints": true
     }
   ]
 }
