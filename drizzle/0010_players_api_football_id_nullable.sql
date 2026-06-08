@@ -1,0 +1,1 @@
+ALTER TABLE "players" ALTER COLUMN "api_football_id" DROP NOT NULL;

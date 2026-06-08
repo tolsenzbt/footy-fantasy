@@ -71,6 +71,13 @@
       "when": 1780449375562,
       "tag": "0009_stats_ingestion",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1780883097797,
+      "tag": "0010_players_api_football_id_nullable",
+      "breakpoints": true
     }
   ]
 }

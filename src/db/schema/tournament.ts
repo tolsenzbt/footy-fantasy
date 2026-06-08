@@ -33,7 +33,7 @@ export const players = pgTable("players", {
     .references(() => nations.id),
   realPosition: text("real_position").notNull(),
   fantasyPosition: fantasyPosition("fantasy_position").notNull(),
-  apiFootballId: integer("api_football_id").notNull().unique(),
+  apiFootballId: integer("api_football_id").unique(),
   active: boolean("active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()

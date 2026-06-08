@@ -30,6 +30,7 @@
     "db:teardown": "tsx --tsconfig tsconfig.scripts.json --env-file=.env.local scripts/teardown.ts",
     "db:fetch-wc-squads": "tsx --tsconfig tsconfig.scripts.json --env-file=.env.local scripts/fetch-wc-squads.ts",
     "db:reconcile-squads": "tsx --tsconfig tsconfig.scripts.json --env-file=.env.local scripts/reconcile-squads.ts",
+    "db:populate-players": "tsx --tsconfig tsconfig.scripts.json --env-file=.env.local scripts/populate-players-from-wiki.ts",
     "test": "vitest run"
   },
   "dependencies": {
