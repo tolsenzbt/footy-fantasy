@@ -104,7 +104,7 @@ function matchConfidence(
 type RejectEntry = {
   name: string;
   nation: string;
-  fantasyPosition: string;
+  position: string;
   reason: string;
   candidates: string[];
 };
@@ -149,7 +149,7 @@ async function main() {
       id: players.id,
       name: players.name,
       nationId: players.nationId,
-      fantasyPosition: players.fantasyPosition,
+      position: players.position,
     })
     .from(players)
     .where(isNull(players.apiFootballId));
@@ -198,7 +198,7 @@ async function main() {
     if (apiSquad.length === 0) {
       for (const wp of wikiPlayers) {
         rejects.push({
-          name: wp.name, nation: nation.name, fantasyPosition: wp.fantasyPosition,
+          name: wp.name, nation: nation.name, position: wp.position,
           reason: "no API squad cached", candidates: [],
         });
       }
@@ -243,7 +243,7 @@ async function main() {
 
       if (highCands.length === 0) {
         rejects.push({
-          name: wp.name, nation: nation.name, fantasyPosition: wp.fantasyPosition,
+          name: wp.name, nation: nation.name, position: wp.position,
           reason: "no high-confidence name match",
           candidates: anyCands.map((ap) => `${ap.id}:${ap.name}(${ap.position})`),
         });
@@ -263,9 +263,9 @@ async function main() {
           // Keep only if this wp's position matches and no other competitor does.
           const apFp = API_POS_MAP[ap.position];
           const posMatchers = competitors.filter(
-            (wid) => wikiById.get(wid)?.fantasyPosition === apFp
+            (wid) => wikiById.get(wid)?.position === apFp
           );
-          if (posMatchers.length === 1 && wp.fantasyPosition === apFp) {
+          if (posMatchers.length === 1 && wp.position === apFp) {
             unambiguous.push(ap);
           } else {
             contested.push(ap);
@@ -283,7 +283,7 @@ async function main() {
           })
           .join("; ");
         rejects.push({
-          name: wp.name, nation: nation.name, fantasyPosition: wp.fantasyPosition,
+          name: wp.name, nation: nation.name, position: wp.position,
           reason: `name conflict, position cannot disambiguate: ${why}`,
           candidates: highCands.map((ap) => `${ap.id}:${ap.name}(${ap.position})`),
         });
@@ -293,7 +293,7 @@ async function main() {
       if (unambiguous.length > 1) {
         // Multiple unambiguous by name — try position
         const posFiltered = unambiguous.filter(
-          (ap) => API_POS_MAP[ap.position] === wp.fantasyPosition
+          (ap) => API_POS_MAP[ap.position] === wp.position
         );
         if (posFiltered.length === 1) {
           assignments.push({ playerId: wp.id, apiId: posFiltered[0].id });
@@ -301,7 +301,7 @@ async function main() {
           // No mismatch — position matched
         } else {
           rejects.push({
-            name: wp.name, nation: nation.name, fantasyPosition: wp.fantasyPosition,
+            name: wp.name, nation: nation.name, position: wp.position,
             reason: "multiple unambiguous candidates, position could not resolve",
             candidates: unambiguous.map((ap) => `${ap.id}:${ap.name}(${ap.position})`),
           });
@@ -314,10 +314,10 @@ async function main() {
       const apFp = API_POS_MAP[ap.position];
       assignments.push({ playerId: wp.id, apiId: ap.id });
       usedApiIds.add(ap.id);
-      if (apFp !== wp.fantasyPosition) {
+      if (apFp !== wp.position) {
         mismatches.push({
           name: wp.name, nation: nation.name,
-          wikiPosition: wp.fantasyPosition, apiPosition: apFp, apiId: ap.id,
+          wikiPosition: wp.position, apiPosition: apFp, apiId: ap.id,
         });
       }
     }
@@ -376,7 +376,7 @@ async function main() {
         r.candidates.length > 0
           ? `candidates: [${r.candidates.join(", ")}]`
           : "no results";
-      console.log(`  ${r.name} (${r.nation}, ${r.fantasyPosition})`);
+      console.log(`  ${r.name} (${r.nation}, ${r.position})`);
       console.log(`    reason: ${r.reason}`);
       console.log(`    ${candStr}`);
     }

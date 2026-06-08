@@ -122,7 +122,7 @@ export function sortByNeed(entries: ByNeedEntry[]): ByNeedEntry[] {
 export function selectAutoPick(
   pool: Array<{
     playerId: string;
-    fantasyPosition: "GK" | "DEF" | "MID" | "FWD";
+    position: "GK" | "DEF" | "MID" | "FWD";
     groupStagePoints: number;
   }>,
   rosterPositions: Array<"GK" | "DEF" | "MID" | "FWD">
@@ -133,7 +133,7 @@ export function selectAutoPick(
   }
 
   const eligible = pool.filter(
-    (p) => (counts[p.fantasyPosition] ?? 0) < POSITION_MAX[p.fantasyPosition]
+    (p) => (counts[p.position] ?? 0) < POSITION_MAX[p.position]
   );
   if (eligible.length === 0) return null;
 
@@ -412,7 +412,7 @@ export async function submitRedraftPick(
 
   // Get player position
   const [playerRow] = await db
-    .select({ fantasyPosition: players.fantasyPosition })
+    .select({ position: players.position })
     .from(players)
     .where(eq(players.id, playerId))
     .limit(1);
@@ -421,7 +421,7 @@ export async function submitRedraftPick(
 
   // Get manager's current roster (positions)
   const rosterRows = await db
-    .select({ fantasyPosition: players.fantasyPosition })
+    .select({ position: players.position })
     .from(rosters)
     .innerJoin(players, eq(rosters.playerId, players.id))
     .where(and(eq(rosters.leagueId, leagueId), eq(rosters.managerId, managerId)));
@@ -438,12 +438,12 @@ export async function submitRedraftPick(
   // Position max check (accounting for the drop)
   const positionCounts: Record<string, number> = {};
   for (const r of rosterRows) {
-    positionCounts[r.fantasyPosition] = (positionCounts[r.fantasyPosition] ?? 0) + 1;
+    positionCounts[r.position] = (positionCounts[r.position] ?? 0) + 1;
   }
   if (dropPlayerId) {
     // The dropped player's position will be freed; fetch it
     const [dropRow] = await db
-      .select({ fantasyPosition: players.fantasyPosition })
+      .select({ position: players.position })
       .from(rosters)
       .innerJoin(players, eq(rosters.playerId, players.id))
       .where(
@@ -460,14 +460,14 @@ export async function submitRedraftPick(
         `Drop player ${dropPlayerId} is not on manager ${managerId}'s roster`
       );
     }
-    positionCounts[dropRow.fantasyPosition] =
-      (positionCounts[dropRow.fantasyPosition] ?? 0) - 1;
+    positionCounts[dropRow.position] =
+      (positionCounts[dropRow.position] ?? 0) - 1;
   }
 
-  const newCount = (positionCounts[playerRow.fantasyPosition] ?? 0) + 1;
-  if (newCount > POSITION_MAX[playerRow.fantasyPosition]) {
+  const newCount = (positionCounts[playerRow.position] ?? 0) + 1;
+  if (newCount > POSITION_MAX[playerRow.position]) {
     throw new Error(
-      `Adding this player would give manager ${managerId} ${newCount} ${playerRow.fantasyPosition}s, exceeding the maximum of ${POSITION_MAX[playerRow.fantasyPosition]}`
+      `Adding this player would give manager ${managerId} ${newCount} ${playerRow.position}s, exceeding the maximum of ${POSITION_MAX[playerRow.position]}`
     );
   }
 
@@ -665,7 +665,7 @@ export async function resolveExpiredRedraftPick(
 
   // Get manager's roster size and positions
   const rosterRows = await db
-    .select({ playerId: rosters.playerId, fantasyPosition: players.fantasyPosition })
+    .select({ playerId: rosters.playerId, position: players.position })
     .from(rosters)
     .innerJoin(players, eq(rosters.playerId, players.id))
     .where(and(eq(rosters.leagueId, leagueId), eq(rosters.managerId, managerId)));
@@ -701,7 +701,7 @@ export async function resolveExpiredRedraftPick(
 
   // Get player positions and group-stage points for the pool
   const poolPlayerRows = await db
-    .select({ id: players.id, fantasyPosition: players.fantasyPosition })
+    .select({ id: players.id, position: players.position })
     .from(players)
     .where(inArray(players.id, eligiblePlayerIds));
 
@@ -727,11 +727,11 @@ export async function resolveExpiredRedraftPick(
 
   const pool = poolPlayerRows.map((p) => ({
     playerId: p.id,
-    fantasyPosition: p.fantasyPosition,
+    position: p.position,
     groupStagePoints: pointsMap.get(p.id) ?? 0,
   }));
 
-  const rosterPositions = rosterRows.map((r) => r.fantasyPosition);
+  const rosterPositions = rosterRows.map((r) => r.position);
   const autoPickId = selectAutoPick(pool, rosterPositions);
 
   if (!autoPickId) {

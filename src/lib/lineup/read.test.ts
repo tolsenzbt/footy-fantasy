@@ -55,8 +55,8 @@ const lineupRow = {
 };
 
 const slotRows = [
-  { playerId: "p01", playerName: "Alice", fantasyPosition: "GK",  slotType: "starter", lockedAt: null },
-  { playerId: "p02", playerName: "Bob",   fantasyPosition: "DEF", slotType: "starter", lockedAt: null },
+  { playerId: "p01", playerName: "Alice", position: "GK",  slotType: "starter", lockedAt: null },
+  { playerId: "p02", playerName: "Bob",   position: "DEF", slotType: "starter", lockedAt: null },
 ];
 
 beforeEach(() => {

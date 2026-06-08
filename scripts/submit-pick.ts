@@ -40,7 +40,7 @@ async function resolvePlayerId(
     )
     .where(
       and(
-        eq(players.fantasyPosition, position as "GK" | "DEF" | "MID" | "FWD"),
+        eq(players.position, position as "GK" | "DEF" | "MID" | "FWD"),
         eq(players.active, true),
         isNull(rosters.id)
       )

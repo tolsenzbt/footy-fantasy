@@ -79,3 +79,12 @@ export const dropReasonType = pgEnum("drop_reason_type", [
   "mass_release",
   "manager_drop",
 ]);
+
+export const playStatus = pgEnum("play_status", [
+  "definite_starter",
+  "probable_starter",
+  "possible_starter",
+  "probable_substitute",
+  "possible_substitute",
+  "wont_play_much",
+]);

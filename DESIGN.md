@@ -2,9 +2,9 @@
 
 **Project:** A fantasy soccer app for the 2026 FIFA World Cup, built for a private league of 8, 12, or 16 friends.
 
-**Status:** In active implementation. Backend/logic complete through the standings + bracket read-model phase (see §16). Stats ingestion and all UI remain. All format and architectural decisions in this document are locked unless explicitly revisited.
+**Status:** In active implementation. Backend/logic complete and end-to-end validated (see §16). Player pool rebuilt from official 2026 WC squads (§10). All UI remains. All format and architectural decisions in this document are locked unless explicitly revisited.
 
-**Last updated:** June 3, 2026 (v6 — deployment live: §9 Resend SMTP integration + custom domain `footyfantasy.app`, admin bootstrap confirmed against deployed DB; §11 custom domain. v5 — stats ingestion + live scoring phase designed: §6 concededWhileOnPitch derivation + stats storage model, §10 ingestion sweep / GitHub Actions trigger / ROUND_SETTLE_HOURS / live provisional scoring / cross-cron gating, §11 cron split + Next.js 16 correction, §16 updated for migration 0009)
+**Last updated:** June 8, 2026 (v7 — player pool rebuilt from official Wikipedia WC squads as the authoritative spine, replacing the API-Football squad-endpoint seed; `api_football_id` made nullable with backfill deferred to post-kickoff (§10); `real_position` dropped and `fantasy_position` column renamed to `position`; `player_rankings` table + `play_status` enum added for the draft cheat sheet (§10, new subsection); validation league + all seed data wiped for production reset (§16); migration 0011. v6 — deployment live: §9 Resend SMTP + custom domain `footyfantasy.app`. v5 — stats ingestion + live scoring phase: §6/§10/§11/§16.)
 
 ---
 
@@ -469,6 +469,13 @@ Note: the `group_stage→redrafting` transition does **not** trigger the mass-re
 - All endpoints available
 - Returns full match player stats in a single call per fixture
 
+### Player pool source
+The player pool (`players` table) is sourced from the **official 2026 WC squad lists on Wikipedia**, not from API-Football's squad endpoint. Rationale: API-Football's `/players/squads` returns each nation's general player pool (often 30–49 names), not the final 26-man tournament squad, and pre-tournament its competition-scoped player endpoints (`/players?league=1&season=2026`) return nothing — `coverage.players` is `false` until matches begin. The official squads are factual public-record data; Wikipedia's per-nation squad tables are the authoritative, structured source.
+
+A frozen snapshot (`data/wc-squads-2026.json`, 48 nations, 1,243 players) drives the pool. Each `players` row carries `name` (full, diacritics preserved), `nation_id`, and `position` (the single position field, sourced from the wiki squad-list classification GK/DF/MF/FW → GK/DEF/MID/FWD). There is one position column; an earlier `real_position`/`fantasy_position` split was collapsed (migration 0011).
+
+`players.api_football_id` is **nullable and currently all-null**. It is the join key for stats ingestion but is NOT required for drafting, rosters, waivers, or matchups (those key on the internal `players.id` UUID). The backfill is **deferred to post-kickoff**: once `coverage.players` flips true (~June 11), the paginated `/players?league=1&season=2026` endpoint returns the full registered player list with IDs, matched back to pool rows by nation + name. Until then, drafting proceeds on internal IDs.
+
 ### Polling strategy
 - Cron-based, NOT live (event-driven)
 - Stats pulled after each match concludes
@@ -492,6 +499,15 @@ Ownership is tracked in `waiver_player_status` (`league_id`, `player_id`, `statu
 The `rosters` table independently encodes roster membership. These two are dual sources for the rostered case and MUST stay consistent: every ownership transition (award, drop, FCFS pickup) writes both `rosters` and `waiver_player_status` inside a single `db.transaction`. An invariant test asserts they never disagree. (Earlier design framing treated ownership as derived from row presence with no status enum; the implemented model stores it explicitly. This subsection reflects what is built.)
 
 The UI displays each player's nation status as either the next fixture (opponent + kickoff time) when active, or "Eliminated" when not.
+
+### Player rankings (draft cheat sheet)
+A sidecar `player_rankings` table provides draft-assistance data — a global (not league-scoped) cheat sheet, the same for every league. Schema: `player_id` (PK, FK → `players.id`, ON DELETE CASCADE), `o_rank` (nullable int — overall projected rank across all WC players), `play_status` (nullable `play_status` enum), `o_rank_overridden` / `status_overridden` (booleans, default false — a recompute skips admin-corrected rows), `updated_at`.
+
+The `play_status` enum: `definite_starter`, `probable_starter`, `possible_starter`, `probable_substitute`, `possible_substitute`, `wont_play_much`.
+
+Design principle: raw inputs are stored separately from the computed output. `player_rankings` holds only the computed/editorial values the cheat-sheet UI reads; the raw projection inputs live in their own table (see below, pending). O-Rank and play-status are projections that go stale and are editorial, so they are NOT stored on the canonical `players` row.
+
+**Data source and derivation (pending implementation):** O-Rank derives from projected fantasy points — projected per-player stats run through the §6 `scorePlayer` engine (same scoring path as real play, so the rank reflects this league's actual scoring), then sorted descending. Play-status derives from RotoWire depth-chart position-rank ordering within each nation. Both source files (projections CSV, depth-chart PDF) are user-provided. The table currently exists empty; the ingestion/derivation pipeline is the next build step (§16).
 
 ### Stats ingestion & live scoring
 

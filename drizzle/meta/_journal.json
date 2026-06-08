@@ -78,6 +78,13 @@
       "when": 1780883097797,
       "tag": "0010_players_api_football_id_nullable",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1780921909546,
+      "tag": "0011_player_position_rename_and_rankings",
+      "breakpoints": true
     }
   ]
 }

@@ -106,10 +106,9 @@ const activeState = {
 const fwdPlayer = {
   id: PLAYER_ID,
   name: "Test Player",
-  fantasyPosition: "FWD" as const,
+  position: "FWD" as const,
   active: true,
   nationId: "nation-uuid",
-  realPosition: "ST",
   apiFootballId: 99999,
   createdAt: new Date(),
   updatedAt: new Date(),
@@ -229,8 +228,8 @@ describe("position-max validation", () => {
   it("throws when picking a 3rd GK (max 2)", async () => {
     mockGetDraftState.mockResolvedValue(activeState);
     setupSelects({
-      player: { ...fwdPlayer, fantasyPosition: "GK", name: "GK3" },
-      currentRoster: [{ fantasyPosition: "GK" }, { fantasyPosition: "GK" }],
+      player: { ...fwdPlayer, position: "GK", name: "GK3" },
+      currentRoster: [{ position: "GK" }, { position: "GK" }],
     });
     await expect(
       submitPick({ leagueId: LEAGUE_ID, draftType: "initial", managerId: MANAGER_ID, playerId: PLAYER_ID })
@@ -240,8 +239,8 @@ describe("position-max validation", () => {
   it("throws when picking a 6th DEF (max 5)", async () => {
     mockGetDraftState.mockResolvedValue(activeState);
     setupSelects({
-      player: { ...fwdPlayer, fantasyPosition: "DEF", name: "DEF6" },
-      currentRoster: Array(5).fill({ fantasyPosition: "DEF" }),
+      player: { ...fwdPlayer, position: "DEF", name: "DEF6" },
+      currentRoster: Array(5).fill({ position: "DEF" }),
     });
     await expect(
       submitPick({ leagueId: LEAGUE_ID, draftType: "initial", managerId: MANAGER_ID, playerId: PLAYER_ID })
@@ -251,7 +250,7 @@ describe("position-max validation", () => {
   it("throws when picking a 4th FWD (max 3)", async () => {
     mockGetDraftState.mockResolvedValue(activeState);
     setupSelects({
-      currentRoster: Array(3).fill({ fantasyPosition: "FWD" }),
+      currentRoster: Array(3).fill({ position: "FWD" }),
     });
     await expect(
       submitPick({ leagueId: LEAGUE_ID, draftType: "initial", managerId: MANAGER_ID, playerId: PLAYER_ID })

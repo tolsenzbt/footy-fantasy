@@ -30,13 +30,13 @@ async function getRosterCounts(
   managerId: string
 ): Promise<Record<Position, number>> {
   const rows = await db
-    .select({ fantasyPosition: players.fantasyPosition })
+    .select({ position: players.position })
     .from(rosters)
     .innerJoin(players, eq(rosters.playerId, players.id))
     .where(and(eq(rosters.leagueId, leagueId), eq(rosters.managerId, managerId)));
 
   const counts: Record<Position, number> = { GK: 0, DEF: 0, MID: 0, FWD: 0 };
-  for (const row of rows) counts[row.fantasyPosition as Position]++;
+  for (const row of rows) counts[row.position as Position]++;
   return counts;
 }
 
@@ -59,7 +59,7 @@ async function findPlayer(leagueId: string, positions: Position[]) {
     .select({
       id: players.id,
       name: players.name,
-      fantasyPosition: players.fantasyPosition,
+      position: players.position,
       nationName: nations.name,
     })
     .from(players)
@@ -72,7 +72,7 @@ async function findPlayer(leagueId: string, positions: Position[]) {
       and(
         eq(players.active, true),
         isNull(rosters.id),
-        inArray(players.fantasyPosition, positions)
+        inArray(players.position, positions)
       )
     )
     .orderBy(players.name)
@@ -165,7 +165,7 @@ async function main() {
     const roundLabel = String(round).padStart(2);
     const slotLabel = String(slot).padStart(2);
     console.log(
-      `Pick ${pickLabel} (R${roundLabel} S${slotLabel}): ${managerLabel} picks ${player.name} (${player.fantasyPosition}, ${player.nationName})`
+      `Pick ${pickLabel} (R${roundLabel} S${slotLabel}): ${managerLabel} picks ${player.name} (${player.position}, ${player.nationName})`
     );
 
     state = await getDraftState(leagueId, "initial");

@@ -410,8 +410,7 @@ async function seedPlayers(): Promise<PlayerRow> {
         .values({
           name: player.name,
           nationId: nation.id,
-          realPosition: player.position,
-          fantasyPosition: fp,
+          position: fp,
           apiFootballId: player.id,
           active: true,
         })
@@ -420,8 +419,7 @@ async function seedPlayers(): Promise<PlayerRow> {
           set: {
             name: player.name,
             nationId: nation.id,
-            realPosition: player.position,
-            fantasyPosition: fp,
+            position: fp,
             active: true,
             updatedAt: new Date(),
           },

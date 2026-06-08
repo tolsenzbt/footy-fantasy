@@ -68,7 +68,7 @@ export type SweepDeps = {
   getLastResponseHash: (fixtureId: string, newHash: string) => Promise<boolean>;
   storeRawPayload: (fixtureId: string, payload: unknown, hash: string, fetchedAt: Date) => Promise<void>;
   setFinalizedAt: (fixtureId: string, at: Date) => Promise<void>;
-  getPlayersByApiIds: (apiIds: number[]) => Promise<Array<{ id: string; apiFootballId: number; fantasyPosition: string }>>;
+  getPlayersByApiIds: (apiIds: number[]) => Promise<Array<{ id: string; apiFootballId: number; position: string }>>;
   upsertPlayerMatchStats: (args: unknown) => Promise<void>;
   upsertPlayerMatchScore: (args: UpsertScoreArgs) => Promise<void>;
   setStatsIngestedAt: (fantasyRoundId: string, at: Date) => Promise<void>;
@@ -175,7 +175,7 @@ async function buildRealDeps(allFixturesData: ApiAllFixturesItem[]): Promise<Swe
     getPlayersByApiIds: async (apiIds) => {
       if (apiIds.length === 0) return [];
       const rows = await db
-        .select({ id: players.id, apiFootballId: players.apiFootballId, fantasyPosition: players.fantasyPosition })
+        .select({ id: players.id, apiFootballId: players.apiFootballId, position: players.position })
         .from(players)
         .where(inArray(players.apiFootballId, apiIds));
       return rows;
@@ -444,7 +444,7 @@ async function pollAndScoreFixture(
       updatedAt: now,
     });
 
-    const enginePosition = positionMap[raw.position] ?? (playerRow.fantasyPosition as "GK" | "DEF" | "MID" | "FWD");
+    const enginePosition = positionMap[raw.position] ?? (playerRow.position as "GK" | "DEF" | "MID" | "FWD");
     const points = scorePlayer(
       {
         minutesPlayed: raw.minutesPlayed,

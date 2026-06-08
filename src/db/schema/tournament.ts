@@ -31,8 +31,7 @@ export const players = pgTable("players", {
   nationId: uuid("nation_id")
     .notNull()
     .references(() => nations.id),
-  realPosition: text("real_position").notNull(),
-  fantasyPosition: fantasyPosition("fantasy_position").notNull(),
+  position: fantasyPosition("position").notNull(),
   apiFootballId: integer("api_football_id").unique(),
   active: boolean("active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true })

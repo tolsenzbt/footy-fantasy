@@ -18,7 +18,7 @@ type FantasyRound = (typeof ROUND_ORDER)[number];
 export type LineupSlotDetail = {
   playerId: string;
   playerName: string;
-  fantasyPosition: "GK" | "DEF" | "MID" | "FWD";
+  position: "GK" | "DEF" | "MID" | "FWD";
   slotType: "starter" | "bench";
   lockedAt: Date | null;
 };
@@ -81,7 +81,7 @@ export async function getLineup(
       .select({
         playerId: lineupSlots.playerId,
         playerName: players.name,
-        fantasyPosition: players.fantasyPosition,
+        position: players.position,
         slotType: lineupSlots.slotType,
         lockedAt: lineupSlots.lockedAt,
       })

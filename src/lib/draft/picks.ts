@@ -81,20 +81,20 @@ export async function submitPick(args: {
 
   // 5. Position-max check
   const currentRosterRows = await db
-    .select({ fantasyPosition: players.fantasyPosition })
+    .select({ position: players.position })
     .from(rosters)
     .innerJoin(players, eq(rosters.playerId, players.id))
     .where(and(eq(rosters.leagueId, args.leagueId), eq(rosters.managerId, args.managerId)));
 
   const positionCounts: Record<string, number> = {};
   for (const row of currentRosterRows) {
-    positionCounts[row.fantasyPosition] = (positionCounts[row.fantasyPosition] ?? 0) + 1;
+    positionCounts[row.position] = (positionCounts[row.position] ?? 0) + 1;
   }
-  const newPositionCount = (positionCounts[player.fantasyPosition] ?? 0) + 1;
-  const positionMax = POSITION_MAX[player.fantasyPosition];
+  const newPositionCount = (positionCounts[player.position] ?? 0) + 1;
+  const positionMax = POSITION_MAX[player.position];
   if (newPositionCount > positionMax) {
     throw new Error(
-      `Picking ${player.name} would give manager ${args.managerId} ${newPositionCount} ${player.fantasyPosition}s, exceeding the maximum of ${positionMax}.`
+      `Picking ${player.name} would give manager ${args.managerId} ${newPositionCount} ${player.position}s, exceeding the maximum of ${positionMax}.`
     );
   }
 

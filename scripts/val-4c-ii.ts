@@ -108,11 +108,11 @@ async function getRoundId(round: string): Promise<string> {
 /** Returns full roster. If round given, filters to only players whose nation has a fixture that round. */
 async function getManagerRoster(managerId: string, round?: string): Promise<Array<{ playerId: string; pos: FantasyPosition; name: string }>> {
   const rows = await db
-    .select({ playerId: players.id, pos: players.fantasyPosition, name: players.name, nationId: players.nationId })
+    .select({ playerId: players.id, pos: players.position, name: players.name, nationId: players.nationId })
     .from(rosters)
     .innerJoin(players, eq(rosters.playerId, players.id))
     .where(and(eq(rosters.leagueId, VAL), eq(rosters.managerId, managerId)))
-    .orderBy(players.fantasyPosition, players.name);
+    .orderBy(players.position, players.name);
 
   if (!round) return rows.map(r => ({ playerId: r.playerId, pos: r.pos as FantasyPosition, name: r.name }));
 
@@ -274,7 +274,7 @@ async function injectMatchupStats(
 
   // Get player positions + nation IDs
   const playerRows = await db
-    .select({ id: players.id, fantasyPosition: players.fantasyPosition, nationId: players.nationId, name: players.name })
+    .select({ id: players.id, position: players.position, nationId: players.nationId, name: players.name })
     .from(players)
     .where(inArray(players.id, allIds));
 
@@ -307,7 +307,7 @@ async function injectMatchupStats(
     const fixtureId = fixtureByNation.get(p.nationId);
     if (!fixtureId) continue; // player's nation has no fixture this round (shouldn't happen)
 
-    const pos = p.fantasyPosition as FantasyPosition;
+    const pos = p.position as FantasyPosition;
 
     let statsArgs: { minutesPlayed: number; goals: number; assists: number; concededWhileOnPitch: number;
       saves: number; penaltySaves: number; penaltiesMissed: number; yellowCards: number; redCard: boolean; ownGoals: number };
@@ -943,12 +943,12 @@ async function main() {
     .where(and(eq(lineups.leagueId, VAL), eq(lineups.managerId, sfFirstMatchup.homeManagerId!), eq(lineups.fantasyRoundId, sfRoundId)));
   if (sfCaptainId[0]?.captainPlayerId) {
     const captainRow = await db
-      .select({ id: players.id, name: players.name, fantasyPosition: players.fantasyPosition, nationId: players.nationId })
+      .select({ id: players.id, name: players.name, position: players.position, nationId: players.nationId })
       .from(players)
       .where(eq(players.id, sfCaptainId[0].captainPlayerId));
     if (captainRow[0]) {
       const cap = captainRow[0];
-      const pos = cap.fantasyPosition as FantasyPosition;
+      const pos = cap.position as FantasyPosition;
       const expectedBase = scorePlayer({ minutesPlayed: 90, goals: 2, assists: 0, concededWhileOnPitch: 0, saves: 0, penaltiesSaved: 0, penaltiesMissed: 0, yellowCards: 0, redCards: 0, ownGoals: 0 }, pos);
       console.log(`\n  SF spot-check: captain ${cap.name} (${pos}) base=${expectedBase} pts (×2 in lineup = ${expectedBase*2}) ✓`);
     }

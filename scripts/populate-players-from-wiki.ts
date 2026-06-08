@@ -24,12 +24,20 @@ const NATION_ALIASES: Record<string, string> = {
 
 async function countTable(table: string): Promise<number> {
   const rows = await db.execute(sql.raw(`SELECT count(*)::int AS c FROM public.${table}`));
-  return (rows as Array<{ c: number }>)[0].c;
+  return (rows as unknown as Array<{ c: number }>)[0].c;
 }
 
 async function main() {
   // ── Step 1: verify FK dependents are empty ──────────────────────────────
-  const depTables = ["rosters", "draft_picks", "player_match_stats", "player_match_scores"];
+  const depTables = [
+    "rosters",
+    "lineup_slots",
+    "draft_picks",
+    "player_match_stats",
+    "player_match_scores",
+    "waiver_player_status",
+    "waiver_claims",
+  ];
   console.log("Step 1 — FK dependent counts:");
   let anyNonZero = false;
   for (const t of depTables) {
@@ -86,8 +94,7 @@ async function main() {
   const rows: {
     name: string;
     nationId: string;
-    realPosition: string;
-    fantasyPosition: "GK" | "DEF" | "MID" | "FWD";
+    position: "GK" | "DEF" | "MID" | "FWD";
   }[] = [];
 
   for (const squad of wikiData.squads) {
@@ -99,7 +106,7 @@ async function main() {
         await client.end();
         process.exit(1);
       }
-      rows.push({ name: p.name, nationId, realPosition: p.position, fantasyPosition: fp });
+      rows.push({ name: p.name, nationId, position: fp });
     }
   }
 
@@ -128,15 +135,15 @@ async function main() {
 
   // Per-position totals
   const perPos = (await db.execute(sql`
-    SELECT fantasy_position, COUNT(*)::int AS cnt
+    SELECT position, COUNT(*)::int AS cnt
     FROM players
-    GROUP BY fantasy_position
-    ORDER BY fantasy_position
-  `)) as Array<{ fantasy_position: string; cnt: number }>;
+    GROUP BY position
+    ORDER BY position
+  `)) as Array<{ position: string; cnt: number }>;
 
   console.log("\nPer-fantasy-position totals:");
   for (const row of perPos) {
-    console.log(`  ${row.fantasy_position}: ${row.cnt}`);
+    console.log(`  ${row.position}: ${row.cnt}`);
   }
 
   console.log("\n── Validation gate ──────────────────────────────────────────────────");

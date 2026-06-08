@@ -39,14 +39,14 @@ async function main() {
   const starters = lineup.slots.filter(s => s.slotType === "starter");
   for (const s of starters) {
     const lock = s.lockedAt ? " [LOCKED]" : "";
-    console.log(`    ${s.fantasyPosition.padEnd(4)} ${s.playerName}${lock}`);
+    console.log(`    ${s.position.padEnd(4)} ${s.playerName}${lock}`);
   }
 
   console.log("\n  Bench:");
   const bench = lineup.slots.filter(s => s.slotType === "bench");
   for (const s of bench) {
     const lock = s.lockedAt ? " [LOCKED]" : "";
-    console.log(`    ${s.fantasyPosition.padEnd(4)} ${s.playerName}${lock}`);
+    console.log(`    ${s.position.padEnd(4)} ${s.playerName}${lock}`);
   }
 
   console.log();

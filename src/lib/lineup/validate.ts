@@ -3,7 +3,7 @@ import { isValidFormation, parseFormation } from "./formations";
 
 export type RosterPlayer = {
   playerId: string;
-  fantasyPosition: "GK" | "DEF" | "MID" | "FWD";
+  position: "GK" | "DEF" | "MID" | "FWD";
   nationKickoffAt: Date | null;
 };
 
@@ -67,7 +67,7 @@ export function validateLineup(
   }
   const breakdown = parseFormation(sub.formation);
   const counts = { GK: 0, DEF: 0, MID: 0, FWD: 0 };
-  for (const id of sub.starterPlayerIds) counts[rosterMap.get(id)!.fantasyPosition]++;
+  for (const id of sub.starterPlayerIds) counts[rosterMap.get(id)!.position]++;
   if (
     counts.GK !== breakdown.gk ||
     counts.DEF !== breakdown.def ||

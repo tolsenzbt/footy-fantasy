@@ -31,7 +31,7 @@ export async function setLineup(args: SetLineupArgs): Promise<SetLineupResult> {
     const rosterRows = await tx
       .select({
         playerId: players.id,
-        fantasyPosition: players.fantasyPosition,
+        position: players.position,
         nationKickoffAt: realFixtures.kickoffAt,
       })
       .from(rosters)
@@ -42,7 +42,7 @@ export async function setLineup(args: SetLineupArgs): Promise<SetLineupResult> {
 
     const rosterPlayers: RosterPlayer[] = rosterRows.map(r => ({
       playerId: r.playerId,
-      fantasyPosition: r.fantasyPosition,
+      position: r.position,
       nationKickoffAt: r.nationKickoffAt ?? null,
     }));
 

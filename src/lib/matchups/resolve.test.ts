@@ -79,12 +79,12 @@ function makeLineup(
   vcPlayerId: string | null = PLAYER_DEF,
 ) {
   const starters = [
-    { playerId: PLAYER_GK, playerName: "GK", fantasyPosition: "GK" as const, slotType: "starter" as const, lockedAt: null },
-    { playerId: PLAYER_DEF, playerName: "DEF", fantasyPosition: "DEF" as const, slotType: "starter" as const, lockedAt: null },
+    { playerId: PLAYER_GK, playerName: "GK", position: "GK" as const, slotType: "starter" as const, lockedAt: null },
+    { playerId: PLAYER_DEF, playerName: "DEF", position: "DEF" as const, slotType: "starter" as const, lockedAt: null },
     ...Array.from({ length: 9 }, (_, i) => ({
       playerId: `player-mid-${i}`,
       playerName: `MID ${i}`,
-      fantasyPosition: "MID" as const,
+      position: "MID" as const,
       slotType: "starter" as const,
       lockedAt: null,
     })),

@@ -47,11 +47,11 @@ async function main() {
 
   // Fetch roster sorted alphabetically within each position
   const rosterRows = await db
-    .select({ playerId: players.id, name: players.name, fantasyPosition: players.fantasyPosition })
+    .select({ playerId: players.id, name: players.name, position: players.position })
     .from(rosters)
     .innerJoin(players, eq(players.id, rosters.playerId))
     .where(and(eq(rosters.leagueId, leagueId), eq(rosters.managerId, managerId)))
-    .orderBy(players.fantasyPosition, players.name);
+    .orderBy(players.position, players.name);
 
   if (rosterRows.length !== 14) {
     console.error(`Expected 14 roster players, found ${rosterRows.length}.`);
@@ -59,7 +59,7 @@ async function main() {
   }
 
   const byPos: Record<string, string[]> = { GK: [], DEF: [], MID: [], FWD: [] };
-  for (const p of rosterRows) byPos[p.fantasyPosition].push(p.playerId);
+  for (const p of rosterRows) byPos[p.position].push(p.playerId);
 
   const starterIds = [
     ...byPos.GK.slice(0, breakdown.gk),

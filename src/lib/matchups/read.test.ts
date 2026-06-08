@@ -64,7 +64,7 @@ function makeLineup(managerId: string, captainId: string | null = PLAYER_GK) {
   const mids = Array.from({ length: 9 }, (_, i) => ({
     playerId: `mid-${i}`,
     playerName: `MID${i}`,
-    fantasyPosition: "MID" as const,
+    position: "MID" as const,
     slotType: "starter" as const,
     lockedAt: null,
   }));
@@ -82,8 +82,8 @@ function makeLineup(managerId: string, captainId: string | null = PLAYER_GK) {
     isFallback: false,
     fallbackRound: null,
     slots: [
-      { playerId: PLAYER_GK, playerName: "GK", fantasyPosition: "GK" as const, slotType: "starter" as const, lockedAt: null },
-      { playerId: PLAYER_DEF, playerName: "DEF", fantasyPosition: "DEF" as const, slotType: "starter" as const, lockedAt: null },
+      { playerId: PLAYER_GK, playerName: "GK", position: "GK" as const, slotType: "starter" as const, lockedAt: null },
+      { playerId: PLAYER_DEF, playerName: "DEF", position: "DEF" as const, slotType: "starter" as const, lockedAt: null },
       ...mids,
     ],
   };

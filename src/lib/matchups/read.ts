@@ -10,7 +10,7 @@ import { scoreLineupBases } from "./score";
 export type PlayerMatchDetail = {
   playerId: string;
   playerName: string;
-  fantasyPosition: "GK" | "DEF" | "MID" | "FWD";
+  position: "GK" | "DEF" | "MID" | "FWD";
   basePoints: number;
   multiplier: 1 | 2;
   finalPoints: number;
@@ -59,7 +59,7 @@ function buildPlayerDetails(
     return {
       playerId: sp.playerId,
       playerName: slot.playerName,
-      fantasyPosition: slot.fantasyPosition as "GK" | "DEF" | "MID" | "FWD",
+      position: slot.position as "GK" | "DEF" | "MID" | "FWD",
       basePoints: sp.basePoints,
       multiplier: sp.multiplier,
       finalPoints: sp.finalPoints,

@@ -10,20 +10,20 @@ import { validateLineup, type RosterPlayer, type PreviousLineup, type LineupSubm
 
 // 14-player roster for a 4-4-2: 1GK + 4DEF + 4MID + 2FWD starters, 3 bench.
 const roster: RosterPlayer[] = [
-  { playerId: "p01", fantasyPosition: "GK",  nationKickoffAt: null },
-  { playerId: "p02", fantasyPosition: "DEF", nationKickoffAt: null },
-  { playerId: "p03", fantasyPosition: "DEF", nationKickoffAt: null },
-  { playerId: "p04", fantasyPosition: "DEF", nationKickoffAt: null },
-  { playerId: "p05", fantasyPosition: "DEF", nationKickoffAt: null },
-  { playerId: "p06", fantasyPosition: "MID", nationKickoffAt: null },
-  { playerId: "p07", fantasyPosition: "MID", nationKickoffAt: null },
-  { playerId: "p08", fantasyPosition: "MID", nationKickoffAt: null },
-  { playerId: "p09", fantasyPosition: "MID", nationKickoffAt: null },
-  { playerId: "p10", fantasyPosition: "FWD", nationKickoffAt: null },
-  { playerId: "p11", fantasyPosition: "FWD", nationKickoffAt: null },
-  { playerId: "p12", fantasyPosition: "GK",  nationKickoffAt: null },
-  { playerId: "p13", fantasyPosition: "MID", nationKickoffAt: null },
-  { playerId: "p14", fantasyPosition: "FWD", nationKickoffAt: null },
+  { playerId: "p01", position: "GK",  nationKickoffAt: null },
+  { playerId: "p02", position: "DEF", nationKickoffAt: null },
+  { playerId: "p03", position: "DEF", nationKickoffAt: null },
+  { playerId: "p04", position: "DEF", nationKickoffAt: null },
+  { playerId: "p05", position: "DEF", nationKickoffAt: null },
+  { playerId: "p06", position: "MID", nationKickoffAt: null },
+  { playerId: "p07", position: "MID", nationKickoffAt: null },
+  { playerId: "p08", position: "MID", nationKickoffAt: null },
+  { playerId: "p09", position: "MID", nationKickoffAt: null },
+  { playerId: "p10", position: "FWD", nationKickoffAt: null },
+  { playerId: "p11", position: "FWD", nationKickoffAt: null },
+  { playerId: "p12", position: "GK",  nationKickoffAt: null },
+  { playerId: "p13", position: "MID", nationKickoffAt: null },
+  { playerId: "p14", position: "FWD", nationKickoffAt: null },
 ];
 
 const STARTERS = ["p01","p02","p03","p04","p05","p06","p07","p08","p09","p10","p11"];

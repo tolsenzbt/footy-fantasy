@@ -103,7 +103,7 @@ function makeMockDeps(overrides: Partial<{
   inWindowFixtures: ReturnType<typeof makeFixture>[];
   settledRounds: ReturnType<typeof makeRound>[];
   getLastHash: boolean;
-  playerRows: Array<{ id: string; apiFootballId: number; fantasyPosition: string }>;
+  playerRows: Array<{ id: string; apiFootballId: number; position: string }>;
   existingOverridePoints: string | null;
   waiverEventExists: boolean;
   setFinalizedAt: ReturnType<typeof vi.fn<AnyFn>>;
@@ -162,7 +162,7 @@ describe("runIngestSweep", () => {
     const deps = makeMockDeps({
       inWindowFixtures: [fixture],
       settledRounds: [],
-      playerRows: [{ id: "p-1", apiFootballId: 99, fantasyPosition: "GK" }],
+      playerRows: [{ id: "p-1", apiFootballId: 99, position: "GK" }],
     });
 
     (apiFootball.fetchFixtureEvents as ReturnType<typeof vi.fn>).mockResolvedValue(
@@ -241,7 +241,7 @@ describe("runIngestSweep", () => {
     const deps = makeMockDeps({
       inWindowFixtures: [fixture],
       settledRounds: [],
-      playerRows: [{ id: "p-1", apiFootballId: 35533, fantasyPosition: "FWD" }],
+      playerRows: [{ id: "p-1", apiFootballId: 35533, position: "FWD" }],
       upsertScore,
     });
 

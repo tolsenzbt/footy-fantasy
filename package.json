@@ -32,6 +32,7 @@
     "db:reconcile-squads": "tsx --tsconfig tsconfig.scripts.json --env-file=.env.local scripts/reconcile-squads.ts",
     "db:populate-players": "tsx --tsconfig tsconfig.scripts.json --env-file=.env.local scripts/populate-players-from-wiki.ts",
     "db:fill-player-api-ids": "tsx --tsconfig tsconfig.scripts.json --env-file=.env.local scripts/fill-player-api-ids.ts",
+    "db:fill-api-ids-search": "tsx --tsconfig tsconfig.scripts.json --env-file=.env.local scripts/fill-api-ids-via-search.ts",
     "test": "vitest run"
   },
   "dependencies": {

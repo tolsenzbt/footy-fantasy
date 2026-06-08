@@ -214,7 +214,7 @@ describe("sortByNeed — by-need ordering with both tiebreakers", () => {
 describe("selectAutoPick — timeout auto-pick selection", () => {
   type PoolPlayer = {
     playerId: string;
-    fantasyPosition: "GK" | "DEF" | "MID" | "FWD";
+    position: "GK" | "DEF" | "MID" | "FWD";
     groupStagePoints: number;
   };
 
@@ -225,7 +225,7 @@ describe("selectAutoPick — timeout auto-pick selection", () => {
   it("returns null when all pool players exceed position max", () => {
     // Roster already has 2 GKs (max), pool only has GKs
     const pool: PoolPlayer[] = [
-      { playerId: "gk1", fantasyPosition: "GK", groupStagePoints: 50 },
+      { playerId: "gk1", position: "GK", groupStagePoints: 50 },
     ];
     const roster: Array<"GK" | "DEF" | "MID" | "FWD"> = ["GK", "GK"];
     expect(selectAutoPick(pool, roster)).toBeNull();
@@ -233,9 +233,9 @@ describe("selectAutoPick — timeout auto-pick selection", () => {
 
   it("picks highest group-stage points from eligible players", () => {
     const pool: PoolPlayer[] = [
-      { playerId: "p1", fantasyPosition: "MID", groupStagePoints: 40 },
-      { playerId: "p2", fantasyPosition: "MID", groupStagePoints: 80 },
-      { playerId: "p3", fantasyPosition: "MID", groupStagePoints: 60 },
+      { playerId: "p1", position: "MID", groupStagePoints: 40 },
+      { playerId: "p2", position: "MID", groupStagePoints: 80 },
+      { playerId: "p3", position: "MID", groupStagePoints: 60 },
     ];
     expect(selectAutoPick(pool, [])).toBe("p2");
   });
@@ -243,8 +243,8 @@ describe("selectAutoPick — timeout auto-pick selection", () => {
   it("filters out positions at their maximum before selecting best", () => {
     // DEF is at max (5), only MID/FWD available
     const pool: PoolPlayer[] = [
-      { playerId: "def1", fantasyPosition: "DEF", groupStagePoints: 200 },
-      { playerId: "mid1", fantasyPosition: "MID", groupStagePoints: 50 },
+      { playerId: "def1", position: "DEF", groupStagePoints: 200 },
+      { playerId: "mid1", position: "MID", groupStagePoints: 50 },
     ];
     const roster: Array<"GK" | "DEF" | "MID" | "FWD"> = [
       "DEF", "DEF", "DEF", "DEF", "DEF",
