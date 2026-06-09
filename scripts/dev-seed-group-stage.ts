@@ -45,7 +45,6 @@ import {
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface RemapEntry {
-  fix2026Id: string;
   fix2026Label: string;
   src2022Id: number;
   home2026NationApiId: number;
@@ -66,89 +65,110 @@ type RemapMap = Map<number, { id: string; apiFootballId: number; position: strin
 // ─── REMAP Tables (fixture UUIDs are global — same across all leagues) ────────
 
 const MD1_REMAP: RemapEntry[] = [
-  { fix2026Id: "289bd88d-a6d6-4347-bd72-b174363945c3", fix2026Label: "Mexico vs South Africa",            src2022Id: 855739, home2026NationApiId: 16,   away2026NationApiId: 1531 },
-  { fix2026Id: "2742735d-c522-4155-954d-a66b8b5e7a6d", fix2026Label: "South Korea vs Czech Republic",    src2022Id: 855744, home2026NationApiId: 17,   away2026NationApiId: 770  },
-  { fix2026Id: "68487373-9d2c-4c02-a472-870fc4d4092a", fix2026Label: "Canada vs Bosnia & Herzegovina",   src2022Id: 855749, home2026NationApiId: 5529, away2026NationApiId: 1113 },
-  { fix2026Id: "2e8c0a18-47db-42de-8915-e95bcb3992e3", fix2026Label: "USA vs Paraguay",                  src2022Id: 866681, home2026NationApiId: 2384, away2026NationApiId: 2380 },
-  { fix2026Id: "37fdac84-1346-479e-a507-ab360a99ac1a", fix2026Label: "Qatar vs Switzerland",             src2022Id: 855736, home2026NationApiId: 1569, away2026NationApiId: 15   },
-  { fix2026Id: "4da7bfb1-0c4c-4781-bfdf-2badf346995b", fix2026Label: "Brazil vs Morocco",                src2022Id: 855767, home2026NationApiId: 6,    away2026NationApiId: 31   },
-  { fix2026Id: "2f49416d-468f-454e-8424-cecc22d2e8e6", fix2026Label: "Haiti vs Scotland",                src2022Id: 855738, home2026NationApiId: 2386, away2026NationApiId: 1108 },
-  { fix2026Id: "68d7548f-c3c2-4a06-b80a-120996c00aeb", fix2026Label: "Australia vs Türkiye",             src2022Id: 871850, home2026NationApiId: 20,   away2026NationApiId: 777  },
-  { fix2026Id: "4a220b26-a65d-4900-a8ad-d390227cb90c", fix2026Label: "Germany vs Curaçao",               src2022Id: 855741, home2026NationApiId: 25,   away2026NationApiId: 5530 },
-  { fix2026Id: "87268f0d-745b-447f-8caa-b32cf034735b", fix2026Label: "Netherlands vs Japan",             src2022Id: 855734, home2026NationApiId: 1118, away2026NationApiId: 12   },
-  { fix2026Id: "232d766b-f39c-4c7b-aaf4-e18c1c17dee4", fix2026Label: "Ivory Coast vs Ecuador",          src2022Id: 871851, home2026NationApiId: 1501, away2026NationApiId: 2382 },
-  { fix2026Id: "16b5e570-57de-47a8-bbeb-d46bf5bb4299", fix2026Label: "Sweden vs Tunisia",                src2022Id: 855743, home2026NationApiId: 5,    away2026NationApiId: 28   },
-  { fix2026Id: "f3a5ea00-969c-49bc-b9a0-72d1461a1c34", fix2026Label: "Spain vs Cape Verde Islands",      src2022Id: 855745, home2026NationApiId: 9,    away2026NationApiId: 1533 },
-  { fix2026Id: "8120245d-fcb6-4fd3-99de-e2491b2c6894", fix2026Label: "Belgium vs Egypt",                 src2022Id: 855746, home2026NationApiId: 1,    away2026NationApiId: 32   },
-  { fix2026Id: "dad15942-a72d-4525-8fcc-f4cc75d5484d", fix2026Label: "Saudi Arabia vs Uruguay",          src2022Id: 855737, home2026NationApiId: 23,   away2026NationApiId: 7    },
-  { fix2026Id: "a102ed2a-ef23-4ed6-ad27-e6e34fcdb607", fix2026Label: "Iran vs New Zealand",              src2022Id: 855735, home2026NationApiId: 22,   away2026NationApiId: 4673 },
-  { fix2026Id: "0a86db60-89b5-451e-a022-09c66b7a9a91", fix2026Label: "France vs Senegal",                src2022Id: 855747, home2026NationApiId: 2,    away2026NationApiId: 13   },
-  { fix2026Id: "c389fc46-3d7b-44b6-b515-84a775c94cc2", fix2026Label: "Iraq vs Norway",                   src2022Id: 855748, home2026NationApiId: 1567, away2026NationApiId: 1090 },
-  { fix2026Id: "7af74cb3-c9eb-472c-a97b-01d2045e863a", fix2026Label: "Argentina vs Algeria",             src2022Id: 855752, home2026NationApiId: 26,   away2026NationApiId: 1532 },
-  { fix2026Id: "dd99df75-1ecf-4f59-bd21-d9aebddf5340", fix2026Label: "Austria vs Jordan",                src2022Id: 871852, home2026NationApiId: 775,  away2026NationApiId: 1548 },
-  { fix2026Id: "b49d7207-a912-4e5a-b234-0a104e8dda03", fix2026Label: "Portugal vs Congo DR",             src2022Id: 855751, home2026NationApiId: 27,   away2026NationApiId: 1508 },
-  { fix2026Id: "54d19d94-5ebe-4eb6-b2ea-4fc71cec8bfc", fix2026Label: "England vs Croatia",               src2022Id: 855754, home2026NationApiId: 10,   away2026NationApiId: 3    },
-  { fix2026Id: "3d088b40-8425-4e69-a527-45c9f4c33668", fix2026Label: "Ghana vs Panama",                  src2022Id: 855755, home2026NationApiId: 1504, away2026NationApiId: 11   },
-  { fix2026Id: "003bf5e4-a318-41f7-82f2-f99d547de5d6", fix2026Label: "Uzbekistan vs Colombia",           src2022Id: 855742, home2026NationApiId: 1568, away2026NationApiId: 8    },
+  { fix2026Label: "Mexico vs South Africa",            src2022Id: 855739, home2026NationApiId: 16,   away2026NationApiId: 1531 },
+  { fix2026Label: "South Korea vs Czech Republic",    src2022Id: 855744, home2026NationApiId: 17,   away2026NationApiId: 770  },
+  { fix2026Label: "Canada vs Bosnia & Herzegovina",   src2022Id: 855749, home2026NationApiId: 5529, away2026NationApiId: 1113 },
+  { fix2026Label: "USA vs Paraguay",                  src2022Id: 866681, home2026NationApiId: 2384, away2026NationApiId: 2380 },
+  { fix2026Label: "Qatar vs Switzerland",             src2022Id: 855736, home2026NationApiId: 1569, away2026NationApiId: 15   },
+  { fix2026Label: "Brazil vs Morocco",                src2022Id: 855767, home2026NationApiId: 6,    away2026NationApiId: 31   },
+  { fix2026Label: "Haiti vs Scotland",                src2022Id: 855738, home2026NationApiId: 2386, away2026NationApiId: 1108 },
+  { fix2026Label: "Australia vs Türkiye",             src2022Id: 871850, home2026NationApiId: 20,   away2026NationApiId: 777  },
+  { fix2026Label: "Germany vs Curaçao",               src2022Id: 855741, home2026NationApiId: 25,   away2026NationApiId: 5530 },
+  { fix2026Label: "Netherlands vs Japan",             src2022Id: 855734, home2026NationApiId: 1118, away2026NationApiId: 12   },
+  { fix2026Label: "Ivory Coast vs Ecuador",          src2022Id: 871851, home2026NationApiId: 1501, away2026NationApiId: 2382 },
+  { fix2026Label: "Sweden vs Tunisia",                src2022Id: 855743, home2026NationApiId: 5,    away2026NationApiId: 28   },
+  { fix2026Label: "Spain vs Cape Verde Islands",      src2022Id: 855745, home2026NationApiId: 9,    away2026NationApiId: 1533 },
+  { fix2026Label: "Belgium vs Egypt",                 src2022Id: 855746, home2026NationApiId: 1,    away2026NationApiId: 32   },
+  { fix2026Label: "Saudi Arabia vs Uruguay",          src2022Id: 855737, home2026NationApiId: 23,   away2026NationApiId: 7    },
+  { fix2026Label: "Iran vs New Zealand",              src2022Id: 855735, home2026NationApiId: 22,   away2026NationApiId: 4673 },
+  { fix2026Label: "France vs Senegal",                src2022Id: 855747, home2026NationApiId: 2,    away2026NationApiId: 13   },
+  { fix2026Label: "Iraq vs Norway",                   src2022Id: 855748, home2026NationApiId: 1567, away2026NationApiId: 1090 },
+  { fix2026Label: "Argentina vs Algeria",             src2022Id: 855752, home2026NationApiId: 26,   away2026NationApiId: 1532 },
+  { fix2026Label: "Austria vs Jordan",                src2022Id: 871852, home2026NationApiId: 775,  away2026NationApiId: 1548 },
+  { fix2026Label: "Portugal vs Congo DR",             src2022Id: 855751, home2026NationApiId: 27,   away2026NationApiId: 1508 },
+  { fix2026Label: "England vs Croatia",               src2022Id: 855754, home2026NationApiId: 10,   away2026NationApiId: 3    },
+  { fix2026Label: "Ghana vs Panama",                  src2022Id: 855755, home2026NationApiId: 1504, away2026NationApiId: 11   },
+  { fix2026Label: "Uzbekistan vs Colombia",           src2022Id: 855742, home2026NationApiId: 1568, away2026NationApiId: 8    },
 ];
 
 const MD2_REMAP: RemapEntry[] = [
-  { fix2026Id: "294d6a4a-0d88-4d87-9be6-cfb4df468f1e", fix2026Label: "Canada vs Qatar",                   src2022Id: 855760, home2026NationApiId: 5529, away2026NationApiId: 1569 },
-  { fix2026Id: "c524d7f3-96db-4d65-8b3b-85890ecdbfce", fix2026Label: "Mexico vs South Korea",             src2022Id: 855757, home2026NationApiId: 16,   away2026NationApiId: 17   },
-  { fix2026Id: "eafc90ee-52aa-41da-b919-94b86d3ac6e0", fix2026Label: "Brazil vs Haiti",                   src2022Id: 855758, home2026NationApiId: 6,    away2026NationApiId: 2386 },
-  { fix2026Id: "cf94e23c-fd1a-450f-a923-0eb52b82238a", fix2026Label: "Scotland vs Morocco",               src2022Id: 855753, home2026NationApiId: 1108, away2026NationApiId: 31   },
-  { fix2026Id: "d64cbfbd-ddcb-44a7-9501-fe623d536896", fix2026Label: "USA vs Australia",                  src2022Id: 855762, home2026NationApiId: 2384, away2026NationApiId: 20   },
-  { fix2026Id: "729b1fef-2e26-4d93-a051-31b0f6bcadd1", fix2026Label: "Ecuador vs Curaçao",                src2022Id: 855761, home2026NationApiId: 2382, away2026NationApiId: 5530 },
-  { fix2026Id: "745974e1-aedc-4075-90be-965121112af0", fix2026Label: "Germany vs Ivory Coast",            src2022Id: 871855, home2026NationApiId: 25,   away2026NationApiId: 1501 },
-  { fix2026Id: "2cf89342-14a7-41b1-bfca-7cc2ab5e8332", fix2026Label: "Tunisia vs Japan",                  src2022Id: 855756, home2026NationApiId: 28,   away2026NationApiId: 12   },
-  { fix2026Id: "92d039a4-f2f2-4579-97cb-4665ddec7f1d", fix2026Label: "Belgium vs Iran",                   src2022Id: 855766, home2026NationApiId: 1,    away2026NationApiId: 22   },
-  { fix2026Id: "2d97391c-4798-4a07-a3bd-838d53e2e4e7", fix2026Label: "New Zealand vs Egypt",              src2022Id: 855750, home2026NationApiId: 4673, away2026NationApiId: 32   },
-  { fix2026Id: "5e8c88a0-5b4d-49f9-bdbd-aea0f101d4b6", fix2026Label: "Spain vs Saudi Arabia",             src2022Id: 855768, home2026NationApiId: 9,    away2026NationApiId: 23   },
-  { fix2026Id: "6329d56d-0bdf-40e8-b8aa-d6a3ac8acc5c", fix2026Label: "Uruguay vs Cape Verde Islands",     src2022Id: 855759, home2026NationApiId: 7,    away2026NationApiId: 1533 },
-  { fix2026Id: "21cfb5a1-5f5c-4cd6-ae09-40909d574b4b", fix2026Label: "Argentina vs Austria",              src2022Id: 855764, home2026NationApiId: 26,   away2026NationApiId: 775  },
-  { fix2026Id: "2786db1b-4bea-4764-819c-62f444bbdf9f", fix2026Label: "Jordan vs Algeria",                 src2022Id: 866682, home2026NationApiId: 1548, away2026NationApiId: 1532 },
-  { fix2026Id: "c5795677-148f-4426-8234-b70188959e62", fix2026Label: "Norway vs Senegal",                  src2022Id: 855770, home2026NationApiId: 1090, away2026NationApiId: 13   },
-  { fix2026Id: "4996eae9-4f1b-404a-abe3-1c02f17a7c23", fix2026Label: "England vs Ghana",                  src2022Id: 866683, home2026NationApiId: 10,   away2026NationApiId: 1504 },
-  { fix2026Id: "c375022d-f2df-4cc7-840c-2a95947eb200", fix2026Label: "Panama vs Croatia",                 src2022Id: 855740, home2026NationApiId: 11,   away2026NationApiId: 3    },
-  { fix2026Id: "b93b014d-07c9-4235-83c7-3a3dc58a7d8f", fix2026Label: "Portugal vs Uzbekistan",            src2022Id: 855771, home2026NationApiId: 27,   away2026NationApiId: 1568 },
-  { fix2026Id: "1e65c1b0-9170-4402-83fb-70b2abafe2df", fix2026Label: "Czech Republic vs South Africa",    src2022Id: 855763, home2026NationApiId: 770,  away2026NationApiId: 1531 },
-  { fix2026Id: "a70864cc-68fe-4bfd-89f7-60fec4ff6d35", fix2026Label: "Switzerland vs Bosnia & Herzegovina", src2022Id: 855772, home2026NationApiId: 15, away2026NationApiId: 1113 },
-  { fix2026Id: "95e24ba5-ee5c-4636-9565-ff2f8fcd1983", fix2026Label: "Türkiye vs Paraguay",               src2022Id: 871853, home2026NationApiId: 777,  away2026NationApiId: 2380 },
-  { fix2026Id: "d498476e-7690-4a73-9104-d2e1e68baa6d", fix2026Label: "Netherlands vs Sweden",             src2022Id: 855769, home2026NationApiId: 1118, away2026NationApiId: 5    },
-  { fix2026Id: "fe848ec8-ab6e-4397-9ce8-e36694264c73", fix2026Label: "Colombia vs Congo DR",              src2022Id: 855765, home2026NationApiId: 8,    away2026NationApiId: 1508 },
-  { fix2026Id: "11815d62-3fb2-4551-a655-9a7fbd416a3b", fix2026Label: "France vs Iraq",                   src2022Id: 871854, home2026NationApiId: 2,    away2026NationApiId: 1567 },
+  { fix2026Label: "Canada vs Qatar",                   src2022Id: 855760, home2026NationApiId: 5529, away2026NationApiId: 1569 },
+  { fix2026Label: "Mexico vs South Korea",             src2022Id: 855757, home2026NationApiId: 16,   away2026NationApiId: 17   },
+  { fix2026Label: "Brazil vs Haiti",                   src2022Id: 855758, home2026NationApiId: 6,    away2026NationApiId: 2386 },
+  { fix2026Label: "Scotland vs Morocco",               src2022Id: 855753, home2026NationApiId: 1108, away2026NationApiId: 31   },
+  { fix2026Label: "USA vs Australia",                  src2022Id: 855762, home2026NationApiId: 2384, away2026NationApiId: 20   },
+  { fix2026Label: "Ecuador vs Curaçao",                src2022Id: 855761, home2026NationApiId: 2382, away2026NationApiId: 5530 },
+  { fix2026Label: "Germany vs Ivory Coast",            src2022Id: 871855, home2026NationApiId: 25,   away2026NationApiId: 1501 },
+  { fix2026Label: "Tunisia vs Japan",                  src2022Id: 855756, home2026NationApiId: 28,   away2026NationApiId: 12   },
+  { fix2026Label: "Belgium vs Iran",                   src2022Id: 855766, home2026NationApiId: 1,    away2026NationApiId: 22   },
+  { fix2026Label: "New Zealand vs Egypt",              src2022Id: 855750, home2026NationApiId: 4673, away2026NationApiId: 32   },
+  { fix2026Label: "Spain vs Saudi Arabia",             src2022Id: 855768, home2026NationApiId: 9,    away2026NationApiId: 23   },
+  { fix2026Label: "Uruguay vs Cape Verde Islands",     src2022Id: 855759, home2026NationApiId: 7,    away2026NationApiId: 1533 },
+  { fix2026Label: "Argentina vs Austria",              src2022Id: 855764, home2026NationApiId: 26,   away2026NationApiId: 775  },
+  { fix2026Label: "Jordan vs Algeria",                 src2022Id: 866682, home2026NationApiId: 1548, away2026NationApiId: 1532 },
+  { fix2026Label: "Norway vs Senegal",                  src2022Id: 855770, home2026NationApiId: 1090, away2026NationApiId: 13   },
+  { fix2026Label: "England vs Ghana",                  src2022Id: 866683, home2026NationApiId: 10,   away2026NationApiId: 1504 },
+  { fix2026Label: "Panama vs Croatia",                 src2022Id: 855740, home2026NationApiId: 11,   away2026NationApiId: 3    },
+  { fix2026Label: "Portugal vs Uzbekistan",            src2022Id: 855771, home2026NationApiId: 27,   away2026NationApiId: 1568 },
+  { fix2026Label: "Czech Republic vs South Africa",    src2022Id: 855763, home2026NationApiId: 770,  away2026NationApiId: 1531 },
+  { fix2026Label: "Switzerland vs Bosnia & Herzegovina", src2022Id: 855772, home2026NationApiId: 15, away2026NationApiId: 1113 },
+  { fix2026Label: "Türkiye vs Paraguay",               src2022Id: 871853, home2026NationApiId: 777,  away2026NationApiId: 2380 },
+  { fix2026Label: "Netherlands vs Sweden",             src2022Id: 855769, home2026NationApiId: 1118, away2026NationApiId: 5    },
+  { fix2026Label: "Colombia vs Congo DR",              src2022Id: 855765, home2026NationApiId: 8,    away2026NationApiId: 1508 },
+  { fix2026Label: "France vs Iraq",                   src2022Id: 871854, home2026NationApiId: 2,    away2026NationApiId: 1567 },
 ];
 
 const MD3_REMAP: RemapEntry[] = [
-  { fix2026Id: "cd1e19f4-1a86-4ba2-8310-d34cc5bb67c9", fix2026Label: "Czech Republic vs Mexico",        src2022Id: 855739, home2026NationApiId: 770,  away2026NationApiId: 16   },
-  { fix2026Id: "70583f46-6d13-4dc0-827a-69a24b917fcf", fix2026Label: "South Africa vs South Korea",     src2022Id: 855744, home2026NationApiId: 1531, away2026NationApiId: 17   },
-  { fix2026Id: "955230d9-aaa9-4276-b655-fc66ac09c44e", fix2026Label: "Bosnia & Herzegovina vs Qatar",   src2022Id: 855749, home2026NationApiId: 1113, away2026NationApiId: 1569 },
-  { fix2026Id: "9411676f-810e-48e3-af00-200bfd35ddc3", fix2026Label: "Switzerland vs Canada",           src2022Id: 866681, home2026NationApiId: 15,   away2026NationApiId: 5529 },
-  { fix2026Id: "d0eeb7d0-2ec6-4b7a-92cb-d4e8d3e8b79b", fix2026Label: "Morocco vs Haiti",               src2022Id: 855736, home2026NationApiId: 31,   away2026NationApiId: 2386 },
-  { fix2026Id: "e0528a87-91ee-480c-8567-b241ee3227b6", fix2026Label: "Scotland vs Brazil",              src2022Id: 855767, home2026NationApiId: 1108, away2026NationApiId: 6    },
-  { fix2026Id: "28a874a4-0b63-4eb3-9ef9-152376a73212", fix2026Label: "Türkiye vs USA",                  src2022Id: 855738, home2026NationApiId: 777,  away2026NationApiId: 2384 },
-  { fix2026Id: "ef99d44e-bef3-4648-bd3f-0391e63930db", fix2026Label: "Paraguay vs Australia",           src2022Id: 871850, home2026NationApiId: 2380, away2026NationApiId: 20   },
-  { fix2026Id: "3997efda-7d8a-4626-adc5-a6ccec6810a2", fix2026Label: "Ecuador vs Germany",              src2022Id: 855741, home2026NationApiId: 2382, away2026NationApiId: 25   },
-  { fix2026Id: "cc9b3a5a-4d80-4d26-a071-a7acda00002d", fix2026Label: "Curaçao vs Ivory Coast",          src2022Id: 855734, home2026NationApiId: 5530, away2026NationApiId: 1501 },
-  { fix2026Id: "789bd47d-8280-4bd3-a20f-47708e25e3ac", fix2026Label: "Japan vs Sweden",                 src2022Id: 871851, home2026NationApiId: 12,   away2026NationApiId: 5    },
-  { fix2026Id: "58c95103-e955-4643-ab8c-cd23d4d6e4d7", fix2026Label: "Tunisia vs Netherlands",          src2022Id: 855743, home2026NationApiId: 28,   away2026NationApiId: 1118 },
-  { fix2026Id: "9db748e4-8f5d-4f04-82d8-76e5b4c8a855", fix2026Label: "Egypt vs Iran",                  src2022Id: 855745, home2026NationApiId: 32,   away2026NationApiId: 22   },
-  { fix2026Id: "5b4fbd40-6ece-4b26-9298-fc56ed1554fa", fix2026Label: "New Zealand vs Belgium",          src2022Id: 855746, home2026NationApiId: 4673, away2026NationApiId: 1    },
-  { fix2026Id: "d8daed82-aef6-4fbd-8ed1-ae54eae0038d", fix2026Label: "Uruguay vs Spain",               src2022Id: 855737, home2026NationApiId: 7,    away2026NationApiId: 9    },
-  { fix2026Id: "277dc3e2-e4b2-4ed4-a567-47251ae11256", fix2026Label: "Cape Verde Islands vs Saudi Arabia", src2022Id: 855735, home2026NationApiId: 1533, away2026NationApiId: 23 },
-  { fix2026Id: "1ab4291a-3d19-414c-a11b-6aebfb409c1f", fix2026Label: "Senegal vs Iraq",                src2022Id: 855747, home2026NationApiId: 13,   away2026NationApiId: 1567 },
-  { fix2026Id: "68dd6eb7-99ea-423f-9bec-e96a673f3048", fix2026Label: "Norway vs France",               src2022Id: 855748, home2026NationApiId: 1090, away2026NationApiId: 2    },
-  { fix2026Id: "03e566b1-c607-44e6-a5a1-abef7c6b6a82", fix2026Label: "Jordan vs Argentina",            src2022Id: 855752, home2026NationApiId: 1548, away2026NationApiId: 26   },
-  { fix2026Id: "54d6b72a-7bba-4386-9301-da6ee5042e48", fix2026Label: "Algeria vs Austria",             src2022Id: 871852, home2026NationApiId: 1532, away2026NationApiId: 775  },
-  { fix2026Id: "3873de11-2140-4039-8d31-0f69b48d8224", fix2026Label: "Colombia vs Portugal",           src2022Id: 855751, home2026NationApiId: 8,    away2026NationApiId: 27   },
-  { fix2026Id: "0326c118-df90-4c31-8905-8ab0f2c6fc9b", fix2026Label: "Congo DR vs Uzbekistan",         src2022Id: 855754, home2026NationApiId: 1508, away2026NationApiId: 1568 },
-  { fix2026Id: "5f9601c9-9cc6-4fe3-962f-e39fba1f8f3e", fix2026Label: "Croatia vs Ghana",               src2022Id: 855755, home2026NationApiId: 3,    away2026NationApiId: 1504 },
-  { fix2026Id: "aee2a959-aa64-478f-911e-a793343baabe", fix2026Label: "Panama vs England",              src2022Id: 855742, home2026NationApiId: 11,   away2026NationApiId: 10   },
+  { fix2026Label: "Czech Republic vs Mexico",        src2022Id: 855739, home2026NationApiId: 770,  away2026NationApiId: 16   },
+  { fix2026Label: "South Africa vs South Korea",     src2022Id: 855744, home2026NationApiId: 1531, away2026NationApiId: 17   },
+  { fix2026Label: "Bosnia & Herzegovina vs Qatar",   src2022Id: 855749, home2026NationApiId: 1113, away2026NationApiId: 1569 },
+  { fix2026Label: "Switzerland vs Canada",           src2022Id: 866681, home2026NationApiId: 15,   away2026NationApiId: 5529 },
+  { fix2026Label: "Morocco vs Haiti",               src2022Id: 855736, home2026NationApiId: 31,   away2026NationApiId: 2386 },
+  { fix2026Label: "Scotland vs Brazil",              src2022Id: 855767, home2026NationApiId: 1108, away2026NationApiId: 6    },
+  { fix2026Label: "Türkiye vs USA",                  src2022Id: 855738, home2026NationApiId: 777,  away2026NationApiId: 2384 },
+  { fix2026Label: "Paraguay vs Australia",           src2022Id: 871850, home2026NationApiId: 2380, away2026NationApiId: 20   },
+  { fix2026Label: "Ecuador vs Germany",              src2022Id: 855741, home2026NationApiId: 2382, away2026NationApiId: 25   },
+  { fix2026Label: "Curaçao vs Ivory Coast",          src2022Id: 855734, home2026NationApiId: 5530, away2026NationApiId: 1501 },
+  { fix2026Label: "Japan vs Sweden",                 src2022Id: 871851, home2026NationApiId: 12,   away2026NationApiId: 5    },
+  { fix2026Label: "Tunisia vs Netherlands",          src2022Id: 855743, home2026NationApiId: 28,   away2026NationApiId: 1118 },
+  { fix2026Label: "Egypt vs Iran",                  src2022Id: 855745, home2026NationApiId: 32,   away2026NationApiId: 22   },
+  { fix2026Label: "New Zealand vs Belgium",          src2022Id: 855746, home2026NationApiId: 4673, away2026NationApiId: 1    },
+  { fix2026Label: "Uruguay vs Spain",               src2022Id: 855737, home2026NationApiId: 7,    away2026NationApiId: 9    },
+  { fix2026Label: "Cape Verde Islands vs Saudi Arabia", src2022Id: 855735, home2026NationApiId: 1533, away2026NationApiId: 23 },
+  { fix2026Label: "Senegal vs Iraq",                src2022Id: 855747, home2026NationApiId: 13,   away2026NationApiId: 1567 },
+  { fix2026Label: "Norway vs France",               src2022Id: 855748, home2026NationApiId: 1090, away2026NationApiId: 2    },
+  { fix2026Label: "Jordan vs Argentina",            src2022Id: 855752, home2026NationApiId: 1548, away2026NationApiId: 26   },
+  { fix2026Label: "Algeria vs Austria",             src2022Id: 871852, home2026NationApiId: 1532, away2026NationApiId: 775  },
+  { fix2026Label: "Colombia vs Portugal",           src2022Id: 855751, home2026NationApiId: 8,    away2026NationApiId: 27   },
+  { fix2026Label: "Congo DR vs Uzbekistan",         src2022Id: 855754, home2026NationApiId: 1508, away2026NationApiId: 1568 },
+  { fix2026Label: "Croatia vs Ghana",               src2022Id: 855755, home2026NationApiId: 3,    away2026NationApiId: 1504 },
+  { fix2026Label: "Panama vs England",              src2022Id: 855742, home2026NationApiId: 11,   away2026NationApiId: 10   },
 ];
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const POS_MAP: Record<string, string> = { G: "GK", D: "DEF", M: "MID", F: "FWD" };
+
+// ─── Fixture ID lookup ────────────────────────────────────────────────────────
+
+// Looks up real_fixtures.id by (home_api_football_id, away_api_football_id, round).
+// Keyed by "homeApiId_awayApiId". Re-seed safe — no hardcoded UUIDs.
+async function buildFixtureIdMap(round: string): Promise<Map<string, string>> {
+  const rows = await db.execute(sql`
+    SELECT rf.id, hn.api_football_id AS home_api_id, an.api_football_id AS away_api_id
+    FROM real_fixtures rf
+    JOIN nations hn ON hn.id = rf.home_nation_id
+    JOIN nations an ON an.id = rf.away_nation_id
+    WHERE rf.round = ${round}
+  `);
+  const map = new Map<string, string>();
+  for (const r of rows) {
+    const row = r as Record<string, unknown>;
+    map.set(`${row.home_api_id}_${row.away_api_id}`, row.id as string);
+  }
+  return map;
+}
+
 const SETTLE_MS = ROUND_SETTLE_HOURS * 3600 * 1000;
 const DEV_LEAGUE_NAME = "Dev League 2026";
 
@@ -356,7 +376,13 @@ async function stepIngestMatchday(
 ): Promise<void> {
   console.log(`\n=== STEP: INGEST ${mdRound.toUpperCase()} (${remap.length} fixtures) ===`);
 
-  const fix2026Ids = remap.map(e => e.fix2026Id);
+  const fixtureIdMap = await buildFixtureIdMap(mdRound);
+  const fix2026Ids: string[] = remap.map(entry => {
+    const key = `${entry.home2026NationApiId}_${entry.away2026NationApiId}`;
+    const id = fixtureIdMap.get(key);
+    if (!id) throw new Error(`No real_fixture for "${entry.fix2026Label}" in round ${mdRound} (key ${key})`);
+    return id;
+  });
   const backdateTime = new Date(Date.now() - 2 * 3600 * 1000);
 
   // ── CLEAR ─────────────────────────────────────────────────────────────────
@@ -418,6 +444,7 @@ async function stepIngestMatchday(
 
   for (let i = 0; i < remap.length; i++) {
     const entry = remap[i];
+    const fix2026Id = fix2026Ids[i];
     const isLast = i === remap.length - 1;
 
     process.stdout.write(`  [${String(i + 1).padStart(2)}/${remap.length}] ${entry.fix2026Label.padEnd(46)}`);
@@ -439,7 +466,7 @@ async function stepIngestMatchday(
     buildPositionalRemap(awayTeam.players, away2026Players, `${awayTeam.team.name}→[${entry.away2026NationApiId}]`).forEach((v, k) => fixtureRemapMap.set(k, v));
 
     const fixtureRow: FixtureRow = {
-      id: entry.fix2026Id,
+      id: fix2026Id,
       apiFootballId: entry.src2022Id,
       round: mdRound,
       kickoffAt: new Date(backdateTime.getTime() - 3600 * 1000),
