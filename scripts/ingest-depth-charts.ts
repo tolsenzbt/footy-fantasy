@@ -17,9 +17,10 @@ import {
 } from "./lib/name-matcher";
 
 // ── play_status derivation ─────────────────────────────────────────────────────
-// rank 1→definite_starter, 2→probable_starter, 3→possible_starter,
-// 4→probable_substitute, 5→possible_substitute, 6+→wont_play_much
-// GTD: downgrade one level, floored at possible_starter (index 2).
+// Outfield (DEF/MID/FWD): rank 1→definite_starter, 2→probable_starter,
+//   3→possible_starter, 4→probable_substitute, 5→possible_substitute, 6+→wont_play_much
+// GK: rank 1→definite_starter, 2→possible_substitute, 3+→wont_play_much
+// GTD: downgrade one level toward wont_play_much (no floor), never improves status.
 // OUT: force wont_play_much.
 
 type PlayStatus =
@@ -39,14 +40,16 @@ const STATUS_LEVELS: PlayStatus[] = [
   "wont_play_much",
 ];
 
-const POSSIBLE_STARTER_IDX = 2; // floor index for GTD
-
-function rankToStatus(rank: number, tag: "GTD" | "OUT" | null): PlayStatus {
+function rankToStatus(rank: number, tag: "GTD" | "OUT" | null, pos: FantasyPosition): PlayStatus {
   if (tag === "OUT") return "wont_play_much";
-  const baseIdx = rank <= 1 ? 0 : rank === 2 ? 1 : rank === 3 ? 2 : rank === 4 ? 3 : rank === 5 ? 4 : 5;
+  let baseIdx: number;
+  if (pos === "GK") {
+    baseIdx = rank <= 1 ? 0 : rank === 2 ? 4 : 5;
+  } else {
+    baseIdx = rank <= 1 ? 0 : rank === 2 ? 1 : rank === 3 ? 2 : rank === 4 ? 3 : rank === 5 ? 4 : 5;
+  }
   if (tag === "GTD") {
-    const downgraded = Math.min(baseIdx + 1, STATUS_LEVELS.length - 1);
-    return STATUS_LEVELS[Math.min(downgraded, POSSIBLE_STARTER_IDX)];
+    return STATUS_LEVELS[Math.min(baseIdx + 1, STATUS_LEVELS.length - 1)];
   }
   return STATUS_LEVELS[baseIdx];
 }
@@ -537,7 +540,7 @@ async function main() {
         playerId: result.player.id,
         dbName: result.player.name,
         rawName: entry.rawName,
-        playStatus: rankToStatus(entry.rank, entry.tag),
+        playStatus: rankToStatus(entry.rank, entry.tag, entry.pos),
         step: result.step,
         nationName: entry.dbNationName,
         pos: entry.pos,
@@ -563,7 +566,7 @@ async function main() {
           playerId: target.id,
           dbName: target.name,
           rawName: entry.rawName,
-          playStatus: rankToStatus(entry.rank, entry.tag),
+          playStatus: rankToStatus(entry.rank, entry.tag, entry.pos),
           step: "override",
           nationName: entry.dbNationName,
           pos: entry.pos,
@@ -653,15 +656,20 @@ async function main() {
   }
   console.log(`\n  Sanity: ~${48 * 4} definite_starters expected (1 per pos group per nation)`);
 
-  console.log(`\nCutoff mapping:`);
+  console.log(`\nCutoff mapping (outfield):`);
   console.log(`  rank 1         → definite_starter`);
   console.log(`  rank 2         → probable_starter`);
   console.log(`  rank 3         → possible_starter`);
   console.log(`  rank 4         → probable_substitute`);
   console.log(`  rank 5         → possible_substitute`);
   console.log(`  rank 6+        → wont_play_much`);
-  console.log(`  GTD modifier   → downgrade 1 level, floor at possible_starter`);
-  console.log(`  OUT override   → wont_play_much`);
+  console.log(`\nCutoff mapping (GK):`);
+  console.log(`  rank 1         → definite_starter`);
+  console.log(`  rank 2         → possible_substitute`);
+  console.log(`  rank 3+        → wont_play_much`);
+  console.log(`\nModifiers (all positions):`);
+  console.log(`  GTD            → downgrade 1 level toward wont_play_much`);
+  console.log(`  OUT            → wont_play_much`);
 
   if (rejected.length > 0) {
     console.log(`\nRejected entries (${rejected.length}):`);
