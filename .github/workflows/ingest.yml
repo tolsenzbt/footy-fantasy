@@ -9,8 +9,9 @@ jobs:
   ingest:
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger ingest route
+- name: Trigger ingest route
         run: |
-          curl -f -s -X GET \
+          curl -sS -w "\nHTTP %{http_code}\n" --fail-with-body \
+            -X GET \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            https://footy-fantasy.vercel.app/api/cron/ingest
+            https://www.footyfantasy.app/api/cron/ingest
