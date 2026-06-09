@@ -117,7 +117,7 @@ async function main() {
     await db.insert(leagueMemberships).values({
       leagueId: league.id,
       userId: profileIds[i],
-      role: i === 0 ? "commissioner" : "manager",
+      role: "manager",
       displayName: MANAGERS[i],
     });
   }
@@ -126,6 +126,10 @@ async function main() {
     .select({ id: leagueMemberships.id, userId: leagueMemberships.userId })
     .from(leagueMemberships)
     .where(eq(leagueMemberships.leagueId, league.id));
+
+  if (memberRows.length !== 16) {
+    throw new Error(`Expected 16 memberships after insert, got ${memberRows.length}. Aborting.`);
+  }
 
   const memberIdByProfileId = new Map(memberRows.map(m => [m.userId, m.id]));
   const membershipIds = profileIds.map(pid => memberIdByProfileId.get(pid)!);
