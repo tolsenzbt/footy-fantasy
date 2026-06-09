@@ -1,5 +1,8 @@
-// FIFA 3-letter code → ISO 3166-1 alpha-2 for emoji flag derivation.
-// Not all FIFA codes match alpha-2; missing entries get no flag (graceful degradation).
+// FIFA code → ISO 3166-1 alpha-2 for emoji flag derivation.
+// Keys are the actual fifa_code values stored in the nations table (sourced from
+// Wikipedia WC2026 squad lists). Two DB collisions exist and are intentionally
+// omitted: AUS (Australia AND Austria share the same code), IRA (Iraq AND Iran).
+// Those nations will render flag-less until the DB collision is resolved (§16).
 const FIFA_TO_ISO2: Record<string, string> = {
   // CONMEBOL
   ARG: "AR", BRA: "BR", COL: "CO", URU: "UY", ECU: "EC", VEN: "VE",
@@ -7,21 +10,22 @@ const FIFA_TO_ISO2: Record<string, string> = {
   // CONCACAF
   USA: "US", MEX: "MX", CAN: "CA", CRC: "CR", HON: "HN", SLV: "SV",
   JAM: "JM", PAN: "PA", TRI: "TT", GUA: "GT", CUB: "CU",
+  HAI: "HT",
   // UEFA
-  FRA: "FR", ESP: "ES", GER: "DE", ITA: "IT", POR: "PT", NED: "NL",
-  BEL: "BE", ENG: "GB", CRO: "HR", SUI: "CH", DEN: "DK", POL: "PL",
-  SWE: "SE", NOR: "NO", AUT: "AT", HUN: "HU", SRB: "RS", SVK: "SK",
+  FRA: "FR", SPA: "ES", GER: "DE", ITA: "IT", POR: "PT", NET: "NL",
+  BEL: "BE", ENG: "GB", CRO: "HR", SWI: "CH", DEN: "DK", POL: "PL",
+  SWE: "SE", NOR: "NO", HUN: "HU", SRB: "RS", SVK: "SK",
   SCO: "GB", WAL: "GB", NIR: "GB", GRE: "GR", ROM: "RO", TUR: "TR",
   SVN: "SI", UKR: "UA", ALB: "AL", GEO: "GE", ISL: "IS", FIN: "FI",
-  CZE: "CZ",
+  CZE: "CZ", BOS: "BA",
   // CAF
-  MAR: "MA", SEN: "SN", NGA: "NG", EGY: "EG", CMR: "CM", GHA: "GH",
-  CIV: "CI", RSA: "ZA", TUN: "TN", COD: "CD", DRC: "CD", MLI: "ML",
-  GUI: "GN", ZAM: "ZM", ANG: "AO", BEN: "BJ",
+  MOR: "MA", SEN: "SN", NGA: "NG", EGY: "EG", CMR: "CM", GHA: "GH",
+  IVO: "CI", SOU: "ZA", TUN: "TN", CON: "CD", MLI: "ML",
+  GUI: "GN", ZAM: "ZM", ANG: "AO", BEN: "BJ", ALG: "DZ", CAP: "CV",
   // AFC
-  JPN: "JP", KOR: "KR", AUS: "AU", IRN: "IR", IRQ: "IQ", KSA: "SA",
-  UAE: "AE", QAT: "QA", UZB: "UZ", IND: "IN", NZL: "NZ", PHI: "PH",
-  BHR: "BH", JOR: "JO", OMA: "OM",
+  JAP: "JP", KOR: "KR", JOR: "JO", SAU: "SA",
+  UAE: "AE", QAT: "QA", UZB: "UZ", IND: "IN", ZEA: "NZ", PHI: "PH",
+  BHR: "BH", OMA: "OM", CUR: "CW",
 };
 
 export function fifaToIso2(fifaCode: string): string | null {

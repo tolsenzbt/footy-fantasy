@@ -35,7 +35,10 @@
     "db:fill-api-ids-search": "tsx --tsconfig tsconfig.scripts.json --env-file=.env.local scripts/fill-api-ids-via-search.ts",
     "db:ingest-projections": "tsx --tsconfig tsconfig.scripts.json --env-file=.env.local scripts/ingest-projections.ts",
     "db:ingest-depth-charts": "tsx --tsconfig tsconfig.scripts.json --env-file=.env.local scripts/ingest-depth-charts.ts",
-    "test": "vitest run"
+    "test": "vitest run",
+    "db:dev-seed": "tsx --tsconfig tsconfig.scripts.json --env-file=.env.local scripts/dev-seed.ts",
+    "db:test-read-models": "tsx --tsconfig tsconfig.scripts.json --env-file=.env.local scripts/test-read-models.ts",
+    "db:cleanup-league": "tsx --tsconfig tsconfig.scripts.json --env-file=.env.local scripts/cleanup-league.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",
