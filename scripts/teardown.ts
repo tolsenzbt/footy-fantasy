@@ -57,7 +57,7 @@ async function countRow(table: string): Promise<number> {
     ? sql.raw(`SELECT count(*)::int AS c FROM ${table}`)
     : sql.raw(`SELECT count(*)::int AS c FROM public.${table}`);
   const rows = await db.execute(q);
-  return (rows as Array<{ c: number }>)[0].c;
+  return (unknown: (rows as unknown as Array<{ c: number }>)[0].c;
 }
 
 async function main() {

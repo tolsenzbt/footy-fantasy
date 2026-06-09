@@ -177,8 +177,13 @@ async function buildRealDeps(allFixturesData: ApiAllFixturesItem[]): Promise<Swe
       const rows = await db
         .select({ id: players.id, apiFootballId: players.apiFootballId, position: players.position })
         .from(players)
-        .where(inArray(players.apiFootballId, apiIds));
-      return rows;
+        .where(
+          and(
+            isNotNull(players.apiFootballId),
+            inArray(players.apiFootballId, apiIds)
+          )
+        );
+      return rows.map((r) => ({ ...r, apiFootballId: r.apiFootballId! }));
     },
 
     upsertPlayerMatchStats: async (args) => {
