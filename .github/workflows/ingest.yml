@@ -9,7 +9,7 @@ jobs:
   ingest:
     runs-on: ubuntu-latest
     steps:
-- name: Trigger ingest route
+      - name: Trigger ingest route
         run: |
           curl -sS -w "\nHTTP %{http_code}\n" --fail-with-body \
             -X GET \
