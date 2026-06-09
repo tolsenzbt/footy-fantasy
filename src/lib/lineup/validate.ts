@@ -26,7 +26,7 @@ export type LineupSubmission = {
   starterPlayerIds: string[];
   benchPlayerIds: string[];
   captainPlayerId: string;
-  vcPlayerId: string;
+  vcPlayerId: string | null;
 };
 
 export type ValidationResult = { ok: true } | { ok: false; error: string };
@@ -83,12 +83,14 @@ export function validateLineup(
     return { ok: false, error: "Captain must be in starting XI" };
   }
 
-  // Rule 6: VC is in starting XI and differs from captain
-  if (!starterSet.has(sub.vcPlayerId)) {
-    return { ok: false, error: "Vice-captain must be in starting XI" };
-  }
-  if (sub.vcPlayerId === sub.captainPlayerId) {
-    return { ok: false, error: "Captain and vice-captain must be different players" };
+  // Rule 6: if VC is set, must be in starting XI and differ from captain (VC is optional per §5)
+  if (sub.vcPlayerId !== null) {
+    if (!starterSet.has(sub.vcPlayerId)) {
+      return { ok: false, error: "Vice-captain must be in starting XI" };
+    }
+    if (sub.vcPlayerId === sub.captainPlayerId) {
+      return { ok: false, error: "Captain and vice-captain must be different players" };
+    }
   }
 
   // Rules 7–8: lock enforcement (only when a previous lineup exists)
@@ -123,7 +125,7 @@ export function validateLineup(
       return { ok: false, error: "Captain is locked and cannot be changed" };
     }
 
-    // Rule 7c: VC lock
+    // Rule 7c: VC lock (only applies when VC was previously set)
     const vcLocked =
       prev.vcLockedAt !== null ||
       (prev.vcPlayerId !== null && isLocked(prev.vcPlayerId));
@@ -135,7 +137,7 @@ export function validateLineup(
     if (sub.captainPlayerId !== prev.captainPlayerId && isLocked(sub.captainPlayerId)) {
       return { ok: false, error: "Cannot designate a locked player as captain" };
     }
-    if (sub.vcPlayerId !== prev.vcPlayerId && isLocked(sub.vcPlayerId)) {
+    if (sub.vcPlayerId !== null && sub.vcPlayerId !== prev.vcPlayerId && isLocked(sub.vcPlayerId)) {
       return { ok: false, error: "Cannot designate a locked player as vice-captain" };
     }
   }
