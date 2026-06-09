@@ -3,12 +3,18 @@ import { cn } from "@/lib/utils";
 /** Converts ISO 3166-1 alpha-2 (e.g. "DE") to a flag emoji via regional indicator chars */
 function iso2ToFlagEmoji(iso2: string): string {
   const offset = 0x1f1a5; // 0x1F1E6 - 'A'.charCodeAt(0)
-  const chars = iso2
+  return iso2
     .toUpperCase()
     .split("")
-    .map(c => String.fromCodePoint(offset + c.charCodeAt(0)));
-  return chars.join("");
+    .map(c => String.fromCodePoint(offset + c.charCodeAt(0)))
+    .join("");
 }
+
+// Tag-sequence flags for GB subdivisions (no ISO 3166-1 alpha-2)
+const SUBDIVISION_FLAGS: Record<string, string> = {
+  ENG: "🏴󠁧󠁢󠁥󠁮󠁧󠁿",
+  SCO: "🏴󠁧󠁢󠁳󠁣󠁴󠁿",
+};
 
 interface NationChipProps {
   /** Canonical FIFA 3-letter code (e.g. "GER", "USA") — display text */
@@ -21,7 +27,9 @@ interface NationChipProps {
 }
 
 export function NationChip({ fifaCode, isoCode, name, className }: NationChipProps) {
-  const flag = isoCode ? iso2ToFlagEmoji(isoCode) : null;
+  const flag = isoCode
+    ? iso2ToFlagEmoji(isoCode)
+    : (SUBDIVISION_FLAGS[fifaCode.toUpperCase()] ?? null);
 
   return (
     <span

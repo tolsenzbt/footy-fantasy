@@ -155,7 +155,7 @@ export default function StyleguidePage() {
             <NationChip fifaCode="KOR" isoCode="KR" name="South Korea" />
             <NationChip fifaCode="MEX" isoCode="MX" name="Mexico" />
           </Row>
-          <p className="text-xs text-[var(--text-dim)] mt-2">No ISO mapping (ENG/SCO — text only):</p>
+          <p className="text-xs text-[var(--text-dim)] mt-2">No alpha-2 (ENG/SCO — tag-sequence flags):</p>
           <Row>
             <NationChip fifaCode="ENG" name="England" />
             <NationChip fifaCode="SCO" name="Scotland" />
