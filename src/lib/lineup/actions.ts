@@ -13,14 +13,14 @@ export type SetLineupArgs = {
   starterPlayerIds: string[];
   benchPlayerIds: string[];
   captainPlayerId: string;
-  vcPlayerId: string;
+  vcPlayerId: string | null;
 };
 
 export type SetLineupResult = {
   lineupId: string;
   formation: string;
   captainPlayerId: string;
-  vcPlayerId: string;
+  vcPlayerId: string | null;
   starters: Array<{ playerId: string; lockedAt: Date | null }>;
   bench: Array<{ playerId: string; lockedAt: Date | null }>;
 };

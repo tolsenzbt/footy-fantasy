@@ -140,9 +140,14 @@ describe("rule 5 — captain in starting XI", () => {
   });
 });
 
-// ── Rule 6: VC in starting XI and ≠ captain ──────────────────────────────────
+// ── Rule 6: VC optional; if set must be in starting XI and ≠ captain ─────────
 
 describe("rule 6 — VC", () => {
+  it("passes with vcPlayerId=null (VC is optional per §5)", () => {
+    const sub = { ...validSub, vcPlayerId: null };
+    expect(validateLineup(sub, roster, null, NOW)).toEqual({ ok: true });
+  });
+
   it("fails when VC is on bench", () => {
     const sub = { ...validSub, vcPlayerId: "p13" };
     const r = validateLineup(sub, roster, null, NOW);
@@ -329,6 +334,22 @@ describe("rule 8 — new captain/VC can't be locked player", () => {
     const sub = { ...validSub, vcPlayerId: "p02" };
     const r = validateLineup(sub, roster, prev, NOW);
     expect(r).toMatchObject({ ok: false, error: expect.stringContaining("locked player as vice-captain") });
+  });
+
+  it("skips VC locked-player check when new VC is null (clearing VC is allowed)", () => {
+    const prev: PreviousLineup = {
+      captainPlayerId: "p01",
+      vcPlayerId: "p02",
+      captainLockedAt: null,
+      vcLockedAt: null,
+      slots: [
+        ...STARTERS.map(id => ({ playerId: id, slotType: "starter" as const, lockedAt: null as Date | null })),
+        ...BENCH.map(id => ({ playerId: id, slotType: "bench" as const, lockedAt: null as Date | null })),
+      ],
+    };
+    // Clearing VC (null) must not hit the "locked player as vice-captain" branch
+    const sub = { ...validSub, vcPlayerId: null };
+    expect(validateLineup(sub, roster, prev, NOW)).toEqual({ ok: true });
   });
 
   it("passes when keeping same captain who happens to be locked", () => {
