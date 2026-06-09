@@ -21,6 +21,7 @@ export type DraftPickDetail = {
     position: "GK" | "DEF" | "MID" | "FWD";
     nationId: string;
     nationFifaCode: string;
+    nationIsoCode: string | null;
     nationName: string;
   };
 };
@@ -115,6 +116,7 @@ export async function getDraftBoard(
       position: players.position,
       nationId: players.nationId,
       nationFifaCode: nations.fifaCode,
+      nationIsoCode: nations.isoCode,
       nationName: nations.name,
     })
     .from(draftPicks)
@@ -141,6 +143,7 @@ export async function getDraftBoard(
         position: r.position as "GK" | "DEF" | "MID" | "FWD",
         nationId: r.nationId,
         nationFifaCode: r.nationFifaCode,
+        nationIsoCode: r.nationIsoCode ?? null,
         nationName: r.nationName,
       },
     };

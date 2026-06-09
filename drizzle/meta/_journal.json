@@ -92,6 +92,13 @@
       "when": 1780929865745,
       "tag": "0012_curly_agent_brand",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1780992271151,
+      "tag": "0013_secret_wendell_rand",
+      "breakpoints": true
     }
   ]
 }

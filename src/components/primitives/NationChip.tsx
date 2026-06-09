@@ -1,17 +1,27 @@
 import { cn } from "@/lib/utils";
-import { fifaToFlagEmoji } from "@/lib/nation-flags";
+
+/** Converts ISO 3166-1 alpha-2 (e.g. "DE") to a flag emoji via regional indicator chars */
+function iso2ToFlagEmoji(iso2: string): string {
+  const offset = 0x1f1a5; // 0x1F1E6 - 'A'.charCodeAt(0)
+  const chars = iso2
+    .toUpperCase()
+    .split("")
+    .map(c => String.fromCodePoint(offset + c.charCodeAt(0)));
+  return chars.join("");
+}
 
 interface NationChipProps {
-  /** 3-letter FIFA code (e.g. "GER", "USA") */
+  /** Canonical FIFA 3-letter code (e.g. "GER", "USA") — display text */
   fifaCode: string;
-  /** Full nation name (fallback display) */
+  /** ISO 3166-1 alpha-2 (e.g. "DE") — source for flag emoji; null for ENG/SCO */
+  isoCode?: string | null;
+  /** Full nation name for tooltip */
   name?: string;
   className?: string;
 }
 
-export function NationChip({ fifaCode, name, className }: NationChipProps) {
-  const flag = fifaToFlagEmoji(fifaCode);
-  const displayCode = fifaCode.toUpperCase();
+export function NationChip({ fifaCode, isoCode, name, className }: NationChipProps) {
+  const flag = isoCode ? iso2ToFlagEmoji(isoCode) : null;
 
   return (
     <span
@@ -27,7 +37,7 @@ export function NationChip({ fifaCode, name, className }: NationChipProps) {
           {flag}
         </span>
       ) : null}
-      <span>{displayCode}</span>
+      <span>{fifaCode.toUpperCase()}</span>
     </span>
   );
 }

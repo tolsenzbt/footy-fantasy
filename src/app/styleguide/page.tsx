@@ -142,25 +142,23 @@ export default function StyleguidePage() {
         {/* ── NationChip ── */}
         <Section title="NationChip">
           <Row>
-            {/* Known FIFA codes with ISO mapping */}
-            <NationChip fifaCode="GER" name="Germany" />
-            <NationChip fifaCode="FRA" name="France" />
-            <NationChip fifaCode="USA" name="United States" />
-            <NationChip fifaCode="BRA" name="Brazil" />
-            <NationChip fifaCode="ARG" name="Argentina" />
-            <NationChip fifaCode="JPN" name="Japan" />
-            <NationChip fifaCode="MAR" name="Morocco" />
-            <NationChip fifaCode="NED" name="Netherlands" />
-            <NationChip fifaCode="ENG" name="England" />
-            <NationChip fifaCode="SUI" name="Switzerland" />
-            <NationChip fifaCode="KOR" name="South Korea" />
-            <NationChip fifaCode="MEX" name="Mexico" />
+            <NationChip fifaCode="GER" isoCode="DE" name="Germany" />
+            <NationChip fifaCode="FRA" isoCode="FR" name="France" />
+            <NationChip fifaCode="USA" isoCode="US" name="United States" />
+            <NationChip fifaCode="BRA" isoCode="BR" name="Brazil" />
+            <NationChip fifaCode="ARG" isoCode="AR" name="Argentina" />
+            <NationChip fifaCode="JPN" isoCode="JP" name="Japan" />
+            <NationChip fifaCode="MAR" isoCode="MA" name="Morocco" />
+            <NationChip fifaCode="NED" isoCode="NL" name="Netherlands" />
+            <NationChip fifaCode="ESP" isoCode="ES" name="Spain" />
+            <NationChip fifaCode="SUI" isoCode="CH" name="Switzerland" />
+            <NationChip fifaCode="KOR" isoCode="KR" name="South Korea" />
+            <NationChip fifaCode="MEX" isoCode="MX" name="Mexico" />
           </Row>
-          <p className="text-xs text-[var(--text-dim)] mt-2">Fallback (no ISO mapping):</p>
+          <p className="text-xs text-[var(--text-dim)] mt-2">No ISO mapping (ENG/SCO — text only):</p>
           <Row>
-            {/* Codes not in the map — graceful fallback, shows code only */}
-            <NationChip fifaCode="ZZZ" name="Unknown Nation" />
-            <NationChip fifaCode="XYZ" />
+            <NationChip fifaCode="ENG" name="England" />
+            <NationChip fifaCode="SCO" name="Scotland" />
           </Row>
         </Section>
 

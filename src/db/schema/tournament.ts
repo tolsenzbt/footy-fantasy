@@ -12,6 +12,7 @@ export const nations = pgTable("nations", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
   fifaCode: text("fifa_code").notNull(),
+  isoCode: text("iso_code"),
   realGroup: text("real_group").notNull(),
   apiFootballId: integer("api_football_id").notNull().unique(),
   eliminatedAtRound: fantasyRound("eliminated_at_round"),

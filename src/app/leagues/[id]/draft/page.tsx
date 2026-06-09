@@ -40,7 +40,7 @@ function PickCell({ pick, isOnClock }: { pick: DraftPickDetail; isOnClock: boole
     >
       <div className="flex items-center gap-1 flex-wrap">
         <PositionBadge position={pick.player.position} />
-        <NationChip fifaCode={pick.player.nationFifaCode} name={pick.player.nationName} />
+        <NationChip fifaCode={pick.player.nationFifaCode} isoCode={pick.player.nationIsoCode} name={pick.player.nationName} />
       </div>
       <span className="text-[11px] leading-tight text-foreground font-medium line-clamp-2 break-words">
         {pick.player.name}
@@ -212,7 +212,7 @@ function PhoneFeed({ board }: { board: DraftBoardData }) {
                 )}
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <PositionBadge position={pick.player.position} />
-                  <NationChip fifaCode={pick.player.nationFifaCode} name={pick.player.nationName} />
+                  <NationChip fifaCode={pick.player.nationFifaCode} isoCode={pick.player.nationIsoCode} name={pick.player.nationName} />
                   <span className="text-sm text-foreground font-medium">
                     {pick.player.name}
                   </span>

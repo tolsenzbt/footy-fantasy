@@ -11,6 +11,7 @@ export type RosterPlayer = {
   position: "GK" | "DEF" | "MID" | "FWD";
   nationId: string;
   nationFifaCode: string;
+  nationIsoCode: string | null;
   nationName: string;
   acquiredVia: "initial_draft" | "redraft" | "waiver" | "free_agent";
 };
@@ -31,6 +32,7 @@ export async function getRoster(
       position: players.position,
       nationId: players.nationId,
       nationFifaCode: nations.fifaCode,
+      nationIsoCode: nations.isoCode,
       nationName: nations.name,
       acquiredVia: rosters.acquiredVia,
     })
@@ -46,6 +48,7 @@ export async function getRoster(
       position: r.position as "GK" | "DEF" | "MID" | "FWD",
       nationId: r.nationId,
       nationFifaCode: r.nationFifaCode,
+      nationIsoCode: r.nationIsoCode ?? null,
       nationName: r.nationName,
       acquiredVia: r.acquiredVia as RosterPlayer["acquiredVia"],
     }))
