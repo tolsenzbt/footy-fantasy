@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { and, eq, gte, inArray, isNotNull, isNull, notInArray, or, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, isNotNull, isNull, lte, notInArray, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   nations,
@@ -111,7 +111,7 @@ async function buildRealDeps(allFixturesData: ApiAllFixturesItem[]): Promise<Swe
         .from(realFixtures)
         .where(
           or(
-            and(isNull(realFixtures.finalizedAt), sql`${realFixtures.kickoffAt} <= ${now}`),
+            and(isNull(realFixtures.finalizedAt), lte(realFixtures.kickoffAt, now)),
             and(isNotNull(realFixtures.finalizedAt), gte(realFixtures.finalizedAt, settleThreshold)),
           ),
         );
@@ -128,7 +128,7 @@ async function buildRealDeps(allFixturesData: ApiAllFixturesItem[]): Promise<Swe
             AND NOT EXISTS (
               SELECT 1 FROM real_fixtures rf
               WHERE rf.round = fr.round
-                AND (rf.finalized_at IS NULL OR rf.finalized_at > ${settleThreshold})
+                AND (rf.finalized_at IS NULL OR rf.finalized_at > ${settleThreshold.toISOString()})
             )
           ORDER BY CASE fr.round
             WHEN 'group_md1' THEN 0 WHEN 'group_md2' THEN 1 WHEN 'group_md3' THEN 2
